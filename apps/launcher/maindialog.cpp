@@ -206,9 +206,9 @@ void Launcher::MainDialog::setVersionLabel()
     versionLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
     if (!Version::getVersion().empty() && (revision.isEmpty() || revision == tag))
         versionLabel->setText(
-            tr("OpenMW %1 release").arg(QString::fromUtf8(Version::getVersion().data(), Version::getVersion().size())));
+            tr("OpenMW %1 release (Enchant Rebalance v0.2)").arg(QString::fromUtf8(Version::getVersion().data(), Version::getVersion().size())));
     else
-        versionLabel->setText(tr("OpenMW development (%1)").arg(revision.left(10)));
+        versionLabel->setText(tr("OpenMW development (%1) (Enchant Rebalance v0.2)").arg(revision.left(10)));
 
     // Add the compile date and time
     auto compileDate = QLocale(QLocale::C).toDate(QString(__DATE__).simplified(), QLatin1String("MMM d yyyy"));

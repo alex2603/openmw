@@ -85,7 +85,7 @@ namespace MWGui
         , mBackground(nullptr)
     {
         getWidget(mVersionText, "VersionText");
-        mVersionText->setCaption(versionDescription);
+        mVersionText->setCaption(versionDescription + "\nEnchant Rebalance v0.2");
 
         constexpr VFS::Path::NormalizedView menuBackgroundVideo("video/menu_background.bik");
 

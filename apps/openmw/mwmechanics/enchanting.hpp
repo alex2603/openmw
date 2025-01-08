@@ -47,6 +47,8 @@ namespace MWMechanics
         void nextCastStyle(); // Set enchant type to next possible type (for mOldItemPtr object)
         int getCastStyle() const;
         float getEnchantPoints(bool precise = true) const;
+        float getEnchantPointsSoulModifier() const;
+        float getEnchantPointsSkillModifier() const;
         int getEffectiveCastCost()
             const; // Effective cost taking player Enchant skill into account, used for preview purposes in the UI
         int getEnchantPrice() const { return getEnchantPrice(getEnchantItemsCount()); }

@@ -1,5 +1,7 @@
 #include "enchanting.hpp"
 
+#include <cmath>
+
 #include <components/esm3/loadcrea.hpp>
 #include <components/esm3/loadmgef.hpp>
 #include <components/misc/rng.hpp>
@@ -197,28 +199,60 @@ namespace MWMechanics
             = store.get<ESM::GameSetting>().find("fEnchantmentConstantDurationMult")->mValue.getFloat();
 
         float enchantmentCost = 0.f;
-        float cost = 0.f;
+        float skillModifier = getEnchantPointsSkillModifier();
+
         for (const ESM::IndexedENAMstruct& effect : mEffectList.mList)
         {
+            float cost = 0.f; // Moved here so multiple effects are not so negatively affected
             float baseCost = (store.get<ESM::MagicEffect>().find(effect.mData.mEffectID))->mData.mBaseCost;
             int magMin = std::max(1, effect.mData.mMagnMin);
             int magMax = std::max(1, effect.mData.mMagnMax);
             int area = std::max(1, effect.mData.mArea);
             float duration = static_cast<float>(effect.mData.mDuration);
             if (mCastStyle == ESM::Enchantment::ConstantEffect)
-                duration = fEnchantmentConstantDurationMult;
-
+                duration = fEnchantmentConstantDurationMult / getEnchantPointsSoulModifier();
+            
             cost += ((magMin + magMax) * duration + area) * baseCost * fEffectCostMult * 0.05f;
-
-            cost = std::max(1.f, cost);
 
             if (effect.mData.mRange == ESM::RT_Target)
                 cost *= 1.5f;
 
+            cost = std::max(1.f, cost / skillModifier);
             enchantmentCost += precise ? cost : std::floor(cost);
         }
 
         return enchantmentCost;
+    }
+    
+    float Enchanting::getEnchantPointsSoulModifier() const
+    {
+        // Changes the enchantment cost based on the soul size (for CE enchantments)
+        // 50 percent at zero and 100 percent at 400 (Nominal for constant effects)
+        return ((getGemCharge() / 400.f) * 0.5f) + 0.5f;
+    }
+
+
+    float Enchanting::getEnchantPointsSkillModifier() const
+    {
+        // Changes the enchantment cost based on the enchanters enchant skill and intelligence
+        // 95 percent based on enchant skill and 5 percent on the intelligence skill
+        const CreatureStats& stats = mEnchanter.getClass().getCreatureStats(mEnchanter);
+        const float enchSkill = static_cast<float>(mEnchanter.getClass().getSkill(mEnchanter, ESM::Skill::Enchant));
+        const float intAttr = static_cast<float>(stats.getAttribute(ESM::Attribute::Intelligence).getModified());
+
+        const float minModifier = 0.666f;
+        const float skillScale = 0.0033f;
+        const float extraCap = 0.2f;
+        const float softCapMult = 0.333f;
+        const float enchFrac = 0.95f;
+
+        float modifier = 0.f;
+        modifier = (minModifier
+            + (1.f - minModifier + extraCap/softCapMult)
+                * (1.f - pow(10.f, -1.f * (enchSkill * enchFrac + intAttr * (1.f - enchFrac)) * skillScale)));
+        modifier = std::min(modifier, (modifier - 1.f) * softCapMult + 1.f);
+
+        return modifier;
     }
 
     const ESM::Enchantment* Enchanting::getRecord(const ESM::Enchantment& toFind) const

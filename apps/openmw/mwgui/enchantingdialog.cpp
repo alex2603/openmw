@@ -44,12 +44,19 @@ namespace MWGui
         getWidget(mEnchantmentPoints, "Enchantment");
         getWidget(mCastCost, "CastCost");
         getWidget(mCharge, "Charge");
+        getWidget(mEnchanterBonus, "EnchanterBonus");
+        getWidget(mSoulBonus, "SoulBonus");
+        getWidget(mSoulBonusLayout, "SoulBonusLayout");
+        getWidget(mCastCostLayout, "CastCostLayout");
         getWidget(mSuccessChance, "SuccessChance");
         getWidget(mChanceLayout, "ChanceLayout");
         getWidget(mTypeButton, "TypeButton");
         getWidget(mBuyButton, "BuyButton");
         getWidget(mPrice, "PriceLabel");
         getWidget(mPriceText, "PriceTextLabel");
+
+        getWidget(mEnchanterBonusLbl, "EnchanterBonusLbl");
+        getWidget(mSoulBonusLbl, "SoulBonusLbl");
 
         setWidgets(mAvailableEffectsList, mUsedEffectsView);
 
@@ -65,6 +72,10 @@ namespace MWGui
     {
         center();
         MWBase::Environment::get().getWindowManager()->setKeyFocusWidget(mName);
+        // Not sure how to set that correctly. Not clean
+        // Long text directly in the .layout crashes the game
+        mEnchanterBonusLbl->setUserString("Caption_Text", "Enchanter's Enchant skill and Intelligence contribution to the maximum enchantment potency. A negative value means a reduced maximum potency.");
+        mSoulBonusLbl->setUserString("Caption_Text", "Soul size contribution to the maximum constant effect enchantment potency. A negative value means a reduced maximum potency.");
     }
 
     void EnchantingDialog::setSoulGem(const MWWorld::Ptr& gem)
@@ -111,6 +122,8 @@ namespace MWGui
         mSuccessChance->setCaption(std::to_string(std::clamp(mEnchanting.getEnchantChance(), 0, 100)));
         mCastCost->setCaption(std::to_string(mEnchanting.getEffectiveCastCost()));
         mPrice->setCaption(std::to_string(mEnchanting.getEnchantPrice()));
+        mSoulBonus->setCaption(std::format("{:.1f}", (mEnchanting.getEnchantPointsSoulModifier() - 1.f) * 100.f) + "%");
+        mEnchanterBonus->setCaption(std::format("{:.1f}", (mEnchanting.getEnchantPointsSkillModifier() - 1.f) * 100.f) + "%");
 
         switch (mEnchanting.getCastStyle())
         {
@@ -118,24 +131,32 @@ namespace MWGui
                 mTypeButton->setCaption(MyGUI::UString(
                     MWBase::Environment::get().getWindowManager()->getGameSettingString("sItemCastOnce", "Cast Once")));
                 setConstantEffect(false);
+                mSoulBonusLayout->setVisible(false);
+                //mCastCostLayout->setVisible(true);
                 break;
             case ESM::Enchantment::WhenStrikes:
                 mTypeButton->setCaption(
                     MyGUI::UString(MWBase::Environment::get().getWindowManager()->getGameSettingString(
                         "sItemCastWhenStrikes", "When Strikes")));
                 setConstantEffect(false);
+                mSoulBonusLayout->setVisible(false);
+                //mCastCostLayout->setVisible(true);
                 break;
             case ESM::Enchantment::WhenUsed:
                 mTypeButton->setCaption(
                     MyGUI::UString(MWBase::Environment::get().getWindowManager()->getGameSettingString(
                         "sItemCastWhenUsed", "When Used")));
                 setConstantEffect(false);
+                mSoulBonusLayout->setVisible(false);
+                //mCastCostLayout->setVisible(true);
                 break;
             case ESM::Enchantment::ConstantEffect:
                 mTypeButton->setCaption(
                     MyGUI::UString(MWBase::Environment::get().getWindowManager()->getGameSettingString(
                         "sItemCastConstant", "Cast Constant")));
                 setConstantEffect(true);
+                mSoulBonusLayout->setVisible(true);
+                //mCastCostLayout->setVisible(false);
                 break;
         }
     }
