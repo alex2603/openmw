@@ -210,7 +210,10 @@ namespace MWMechanics
             int area = std::max(1, effect.mData.mArea);
             float duration = static_cast<float>(effect.mData.mDuration);
             if (mCastStyle == ESM::Enchantment::ConstantEffect)
+            {
                 duration = fEnchantmentConstantDurationMult / getEnchantPointsSoulModifier();
+                magMin = magMax;
+            }
             
             cost += ((magMin + magMax) * duration + area) * baseCost * fEffectCostMult * 0.05f;
 
