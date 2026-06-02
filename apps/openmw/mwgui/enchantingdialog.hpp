@@ -55,6 +55,8 @@ namespace MWGui
         std::unique_ptr<ItemSelectionDialog> mItemSelectionDialog;
 
         MyGUI::Widget* mChanceLayout;
+        MyGUI::Widget* mSoulBonusLayout;
+        MyGUI::Widget* mCastCostLayout;
 
         MyGUI::Button* mCancelButton;
         ItemWidget* mItemBox;
@@ -67,6 +69,10 @@ namespace MWGui
         MyGUI::TextBox* mEnchantmentPoints;
         MyGUI::TextBox* mCastCost;
         MyGUI::TextBox* mCharge;
+        MyGUI::TextBox* mEnchanterBonus;
+        MyGUI::TextBox* mSoulBonus;
+        MyGUI::TextBox* mEnchanterBonusLbl;
+        MyGUI::TextBox* mSoulBonusLbl;
         MyGUI::TextBox* mSuccessChance;
         MyGUI::TextBox* mPrice;
         MyGUI::TextBox* mPriceText;

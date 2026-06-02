@@ -342,7 +342,17 @@ namespace MWGui
     void EditEffectDialog::onMagnitudeMinChanged(MyGUI::ScrollBar* sender, size_t pos)
     {
         mMagnitudeMinValue->setCaption(MyGUI::utility::toString(pos + 1));
-        mEffect.mMagnMin = static_cast<int32_t>(pos + 1);
+        mEffect.mMagnMin = pos + 1;
+        if (mConstantEffect) // Set maximum to the same value if CE
+        {
+            mMagnitudeMaxSlider->setScrollPosition(pos);
+            mEffect.mMagnMax = pos + 1;
+        }
+        else if (pos + 1 > mEffect.mMagnMax) // Drag the max value when raising the min value over the maximum
+        {
+            mMagnitudeMaxSlider->setScrollPosition(pos); // If its higher, just move it also
+            mMagnitudeMaxValue->setCaption(MyGUI::utility::toString(pos + 1));
+        }
 
         // trigger the check again (see below)
         onMagnitudeMaxChanged(mMagnitudeMaxSlider, mMagnitudeMaxSlider->getScrollPosition());
@@ -354,10 +364,11 @@ namespace MWGui
         // make sure the max value is actually larger or equal than the min value
         size_t magnMin
             = std::abs(mEffect.mMagnMin); // should never be < 0, this is just here to avoid the compiler warning
-        if (pos + 1 < magnMin)
+        if ((pos + 1 < magnMin) or (mConstantEffect))
         {
-            pos = mEffect.mMagnMin - 1;
-            sender->setScrollPosition(pos);
+            mMagnitudeMinSlider->setScrollPosition(pos); // If its higher, just move it also
+            mMagnitudeMinValue->setCaption(MyGUI::utility::toString(pos + 1));
+            mEffect.mMagnMin = pos + 1;
         }
 
         mEffect.mMagnMax = static_cast<int32_t>(pos + 1);
@@ -1021,7 +1032,10 @@ namespace MWGui
         mAddEffectDialog.setConstantEffect(constant);
         if (!mConstantEffect && constant)
             for (ESM::ENAMstruct& effect : mEffects)
+            {
                 effect.mRange = ESM::RT_Self;
+                effect.mMagnMin = effect.mMagnMax;
+            }
         mConstantEffect = constant;
     }
 
