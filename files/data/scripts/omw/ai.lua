@@ -19,7 +19,7 @@ local function startPackage(args)
     elseif args.type == 'Escort' then
         if not args.target then error("target required") end
         if not args.destPosition then error("destPosition required") end
-        self:_startAiEscort(args.target, args.destCell or self.cell, args.duration or 0, args.destPosition, cancelOther)
+        self:_startAiEscort(args.target, args.destCell or self.cell, args.duration or 0, args.destPosition, args.isRepeat or false, cancelOther)
     elseif args.type == 'Wander' then
         local key = "idle"
         local idle = {}
@@ -58,6 +58,7 @@ return {
     interfaceName = 'AI',
     --- Basic AI interface
     -- @module AI
+    -- @context local
     -- @usage require('openmw.interfaces').AI
     interface = {
         --- Interface version
@@ -85,9 +86,9 @@ return {
         -- @return #boolean
         isFleeing = function() return self:_isFleeing() end,
 
-        --- Start new AI package.
+        --- Start a new AI package.
         -- @function [parent=#AI] startPackage
-        -- @param #table options See the "Built-in AI packages" page.
+        -- @param #table options See the "AI packages" page.
         startPackage = startPackage,
 
         --- Iterate over all packages starting from the active one and remove those where `filterCallback` returns false.
@@ -127,7 +128,7 @@ return {
             end
         end,
 
-        --- Get list of targets of all packages of the given type.
+        --- Get a list of targets from all packages of the given type.
         -- @function [parent=#AI] getTargets
         -- @param #string packageType
         -- @return #list<openmw.core#GameObject>

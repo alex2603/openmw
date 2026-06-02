@@ -20,6 +20,12 @@
 #include <components/esm3/loaddoor.hpp>
 #include <components/esm3/loadstat.hpp>
 #include <components/esm3/readerscache.hpp>
+#include <components/esm4/loadacti.hpp>
+#include <components/esm4/loadcont.hpp>
+#include <components/esm4/loaddoor.hpp>
+#include <components/esm4/loadfurn.hpp>
+#include <components/esm4/loadstat.hpp>
+#include <components/esm4/loadtree.hpp>
 #include <components/misc/pathhelpers.hpp>
 #include <components/misc/resourcehelpers.hpp>
 #include <components/misc/rng.hpp>
@@ -36,12 +42,14 @@
 
 #include "apps/openmw/mwbase/environment.hpp"
 #include "apps/openmw/mwbase/world.hpp"
+#include "apps/openmw/mwclass/esm4base.hpp"
 #include "apps/openmw/mwworld/esmstore.hpp"
 
 #include "vismask.hpp"
 
 namespace MWRender
 {
+
     namespace
     {
         bool typeFilter(int type, bool far)
@@ -51,8 +59,14 @@ namespace MWRender
                 case ESM::REC_STAT:
                 case ESM::REC_ACTI:
                 case ESM::REC_DOOR:
+                case ESM::REC_STAT4:
+                case ESM::REC_DOOR4:
+                case ESM::REC_TREE4:
                     return true;
                 case ESM::REC_CONT:
+                case ESM::REC_ACTI4:
+                case ESM::REC_CONT4:
+                case ESM::REC_FURN4:
                     return !far;
 
                 default:
@@ -60,7 +74,16 @@ namespace MWRender
             }
         }
 
-        std::string getModel(int type, ESM::RefId id, const MWWorld::ESMStore& store)
+        template <typename Record>
+        std::string_view getEsm4Model(const Record& record)
+        {
+            if (MWClass::ESM4Impl::isMarkerModel(record->mModel))
+                return {};
+            else
+                return record->mModel;
+        }
+
+        std::string_view getModel(int type, ESM::RefId id, const MWWorld::ESMStore& store)
         {
             switch (type)
             {
@@ -72,6 +95,18 @@ namespace MWRender
                     return store.get<ESM::Door>().searchStatic(id)->mModel;
                 case ESM::REC_CONT:
                     return store.get<ESM::Container>().searchStatic(id)->mModel;
+                case ESM::REC_STAT4:
+                    return getEsm4Model(store.get<ESM4::Static>().searchStatic(id));
+                case ESM::REC_DOOR4:
+                    return getEsm4Model(store.get<ESM4::Door>().searchStatic(id));
+                case ESM::REC_TREE4:
+                    return getEsm4Model(store.get<ESM4::Tree>().searchStatic(id));
+                case ESM::REC_ACTI4:
+                    return getEsm4Model(store.get<ESM4::Activator>().searchStatic(id));
+                case ESM::REC_CONT4:
+                    return getEsm4Model(store.get<ESM4::Container>().searchStatic(id));
+                case ESM::REC_FURN4:
+                    return getEsm4Model(store.get<ESM4::Furniture>().searchStatic(id));
                 default:
                     return {};
             }
@@ -195,6 +230,10 @@ namespace MWRender
                         osg::LOD* n = new osg::LOD;
                         for (const auto& [child, range] : children)
                             n->addChild(child, range.first, range.second);
+                        n->setRangeMode(lod->getRangeMode());
+                        n->setCenterMode(lod->getCenterMode());
+                        n->setCenter(lod->getCenter());
+                        n->setRadius(lod->getRadius());
                         n->setDataVariance(osg::Object::STATIC);
                         return n;
                     }
@@ -226,7 +265,7 @@ namespace MWRender
                 for (const osg::Callback* callback = node->getCullCallback(); callback != nullptr;
                      callback = callback->getNestedCallback())
                 {
-                    if (callback->className() == std::string("BillboardCallback"))
+                    if (callback->className() == std::string_view("BillboardCallback"))
                     {
                         if (mOptimizeBillboards)
                         {
@@ -275,8 +314,8 @@ namespace MWRender
                 const osg::Matrix& oldMatrix = matrixTransform->getMatrix();
                 float mag[3]; // attempt to preserve scale
                 for (int i = 0; i < 3; ++i)
-                    mag[i] = std::sqrt(oldMatrix(0, i) * oldMatrix(0, i) + oldMatrix(1, i) * oldMatrix(1, i)
-                        + oldMatrix(2, i) * oldMatrix(2, i));
+                    mag[i] = static_cast<float>(std::sqrt(oldMatrix(0, i) * oldMatrix(0, i)
+                        + oldMatrix(1, i) * oldMatrix(1, i) + oldMatrix(2, i) * oldMatrix(2, i)));
                 osg::Matrix newMatrix;
                 worldToLocal.setTrans(0, 0, 0);
                 newMatrix *= worldToLocal;
@@ -494,6 +533,17 @@ namespace MWRender
             };
         }
 
+        PagedCellRef makePagedCellRef(const ESM4::Reference& value)
+        {
+            return PagedCellRef{
+                .mRefId = value.mBaseObj,
+                .mRefNum = value.mId,
+                .mPosition = value.mPos.asVec3(),
+                .mRotation = value.mPos.asRotationVec3(),
+                .mScale = value.mScale,
+            };
+        }
+
         std::map<ESM::RefNum, PagedCellRef> collectESM3References(
             float size, const osg::Vec2i& startCell, const MWWorld::ESMStore& store)
         {
@@ -561,12 +611,52 @@ namespace MWRender
             }
             return refs;
         }
+
+        std::map<ESM::RefNum, PagedCellRef> collectESM4References(
+            float size, const osg::Vec2i& startCell, ESM::RefId worldspace)
+        {
+            std::map<ESM::RefNum, PagedCellRef> refs;
+            const auto& store = MWBase::Environment::get().getWorld()->getStore();
+            for (int cellX = startCell.x(); cellX < startCell.x() + size; ++cellX)
+            {
+                for (int cellY = startCell.y(); cellY < startCell.y() + size; ++cellY)
+                {
+                    const ESM4::Cell* cell
+                        = store.get<ESM4::Cell>().searchExterior(ESM::ExteriorCellLocation(cellX, cellY, worldspace));
+                    if (!cell)
+                        continue;
+                    for (const ESM4::Reference* ref4 : store.get<ESM4::Reference>().getByCell(cell->mId))
+                    {
+                        if (ref4->mFlags & ESM4::Rec_Disabled)
+                            continue;
+                        int type = store.findStatic(ref4->mBaseObj);
+                        if (!typeFilter(type, size >= 2))
+                            continue;
+                        if (!ref4->mEsp.parent.isZeroOrUnset())
+                        {
+                            const ESM4::Reference* parentRef
+                                = store.get<ESM4::Reference>().searchStatic(ref4->mEsp.parent);
+                            if (parentRef)
+                            {
+                                bool parentDisabled = parentRef->mFlags & ESM4::Rec_Disabled;
+                                bool inversed = ref4->mEsp.flags & ESM4::EnableParent::Flag_Inversed;
+                                if (parentDisabled != inversed)
+                                    continue;
+                            }
+                        }
+                        refs.insert_or_assign(ref4->mId, makePagedCellRef(*ref4));
+                    }
+                }
+            }
+            return refs;
+        }
     }
 
     osg::ref_ptr<osg::Node> ObjectPaging::createChunk(float size, const osg::Vec2f& center, bool activeGrid,
         const osg::Vec3f& viewPoint, bool compile, unsigned char lod)
     {
-        const osg::Vec2i startCell(std::floor(center.x() - size / 2.f), std::floor(center.y() - size / 2.f));
+        const osg::Vec2i startCell(static_cast<int>(std::floor(center.x() - size / 2.f)),
+            static_cast<int>(std::floor(center.y() - size / 2.f)));
         const MWBase::World& world = *MWBase::Environment::get().getWorld();
         const MWWorld::ESMStore& store = world.getStore();
 
@@ -578,7 +668,7 @@ namespace MWRender
         }
         else
         {
-            // TODO
+            refs = collectESM4References(size, startCell, mWorldspace);
         }
 
         if (activeGrid && !refs.empty())
@@ -598,8 +688,10 @@ namespace MWRender
 
         const osg::Vec2f minBound = (center - osg::Vec2f(size / 2.f, size / 2.f));
         const osg::Vec2f maxBound = (center + osg::Vec2f(size / 2.f, size / 2.f));
-        const osg::Vec2i floorMinBound(std::floor(minBound.x()), std::floor(minBound.y()));
-        const osg::Vec2i ceilMaxBound(std::ceil(maxBound.x()), std::ceil(maxBound.y()));
+        const osg::Vec2i floorMinBound(
+            static_cast<int>(std::floor(minBound.x())), static_cast<int>(std::floor(minBound.y())));
+        const osg::Vec2i ceilMaxBound(
+            static_cast<int>(std::ceil(maxBound.x())), static_cast<int>(std::ceil(maxBound.y())));
         struct InstanceList
         {
             std::vector<const PagedCellRef*> mInstances;
@@ -627,7 +719,7 @@ namespace MWRender
         {
             if (size < 1.f)
             {
-                const osg::Vec3f cellPos = ref.mPosition / cellSize;
+                const osg::Vec3f cellPos = ref.mPosition / static_cast<float>(cellSize);
                 if ((minBound.x() > floorMinBound.x() && cellPos.x() < minBound.x())
                     || (minBound.y() > floorMinBound.y() && cellPos.y() < minBound.y())
                     || (maxBound.x() < ceilMaxBound.x() && cellPos.x() >= maxBound.x())
@@ -648,18 +740,20 @@ namespace MWRender
                 continue;
 
             const int type = store.findStatic(ref.mRefId);
-            VFS::Path::Normalized model = getModel(type, ref.mRefId, store);
+            VFS::Path::Normalized model(getModel(type, ref.mRefId, store));
             if (model.empty())
                 continue;
             model = Misc::ResourceHelpers::correctMeshPath(model);
 
-            if (activeGrid && type != ESM::REC_STAT)
+            if (activeGrid && type != ESM::REC_STAT && type != ESM::REC_STAT4)
             {
                 model = Misc::ResourceHelpers::correctActorModelPath(model, mSceneManager->getVFS());
-                if (Misc::getFileExtension(model) == "nif")
+                constexpr VFS::Path::ExtensionView nif("nif");
+                if (model.extension() == nif)
                 {
                     VFS::Path::Normalized kfname = model;
-                    kfname.changeExtension("kf");
+                    constexpr VFS::Path::ExtensionView kf("kf");
+                    kfname.changeExtension(kf);
                     if (mSceneManager->getVFS()->exists(kfname))
                         continue;
                 }
@@ -723,7 +817,8 @@ namespace MWRender
             emplaced.first->second.mInstances.push_back(&ref);
         }
 
-        const osg::Vec3f worldCenter = osg::Vec3f(center.x(), center.y(), 0) * getCellSize(mWorldspace);
+        const osg::Vec3f worldCenter
+            = osg::Vec3f(center.x(), center.y(), 0) * static_cast<float>(getCellSize(mWorldspace));
         osg::ref_ptr<osg::Group> group = new osg::Group;
         osg::ref_ptr<osg::Group> mergeGroup = new osg::Group;
         osg::ref_ptr<Resource::TemplateMultiRef> templateRefs = new Resource::TemplateMultiRef;
@@ -895,8 +990,8 @@ namespace MWRender
     {
         osg::Vec2f clampToCell(const osg::Vec3f& cellPos, const osg::Vec2i& cell)
         {
-            return osg::Vec2f(std::clamp<float>(cellPos.x(), cell.x(), cell.x() + 1),
-                std::clamp<float>(cellPos.y(), cell.y(), cell.y() + 1));
+            return osg::Vec2f(std::clamp(cellPos.x(), static_cast<float>(cell.x()), cell.x() + 1.f),
+                std::clamp(cellPos.y(), static_cast<float>(cell.y()), cell.y() + 1.f));
         }
 
         class CollectIntersecting
@@ -905,7 +1000,7 @@ namespace MWRender
             explicit CollectIntersecting(
                 bool activeGridOnly, const osg::Vec3f& position, const osg::Vec2i& cell, ESM::RefId worldspace)
                 : mActiveGridOnly(activeGridOnly)
-                , mPosition(clampToCell(position / getCellSize(worldspace), cell))
+                , mPosition(clampToCell(position / static_cast<float>(getCellSize(worldspace)), cell))
             {
             }
 

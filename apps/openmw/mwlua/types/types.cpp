@@ -15,6 +15,7 @@ namespace MWLua
 
         constexpr std::string_view Activator = "Activator";
         constexpr std::string_view Armor = "Armor";
+        constexpr std::string_view BodyPart = "BodyPart";
         constexpr std::string_view Book = "Book";
         constexpr std::string_view Clothing = "Clothing";
         constexpr std::string_view Container = "Container";
@@ -64,6 +65,7 @@ namespace MWLua
             { ESM::REC_INTERNAL_MARKER, ObjectTypeName::Marker },
             { ESM::REC_ACTI, ObjectTypeName::Activator },
             { ESM::REC_ARMO, ObjectTypeName::Armor },
+            { ESM::REC_BODY, ObjectTypeName::BodyPart },
             { ESM::REC_BOOK, ObjectTypeName::Book },
             { ESM::REC_CLOT, ObjectTypeName::Clothing },
             { ESM::REC_CONT, ObjectTypeName::Container },
@@ -145,19 +147,19 @@ namespace MWLua
         return ptr;
     }
 
-    sol::table getTypeToPackageTable(lua_State* L)
+    sol::table getTypeToPackageTable(lua_State* state)
     {
         constexpr std::string_view key = "typeToPackage";
-        sol::state_view lua(L);
+        sol::state_view lua(state);
         if (lua[key] == sol::nil)
             lua[key] = sol::table(lua, sol::create);
         return lua[key];
     }
 
-    sol::table getPackageToTypeTable(lua_State* L)
+    sol::table getPackageToTypeTable(lua_State* state)
     {
         constexpr std::string_view key = "packageToType";
-        sol::state_view lua(L);
+        sol::state_view lua(state);
         if (lua[key] == sol::nil)
             lua[key] = sol::table(lua, sol::create);
         return lua[key];
@@ -173,18 +175,18 @@ namespace MWLua
         sol::table types(lua, sol::create);
         auto addType = [&](std::string_view name, std::vector<ESM::RecNameInts> recTypes,
                            std::optional<std::string_view> base = std::nullopt) -> sol::table {
-            sol::table t(lua, sol::create);
-            sol::table ro = LuaUtil::makeReadOnly(t);
+            sol::table table(lua, sol::create);
+            sol::table ro = LuaUtil::makeReadOnly(table);
             sol::table meta = ro[sol::metatable_key];
             meta[sol::meta_function::to_string] = [name]() { return name; };
             if (base)
             {
-                t["baseType"] = types[*base];
+                table["baseType"] = types[*base];
                 sol::table baseMeta(lua, sol::create);
                 baseMeta[sol::meta_function::index] = LuaUtil::getMutableFromReadOnly(types[*base]);
-                t[sol::metatable_key] = baseMeta;
+                table[sol::metatable_key] = baseMeta;
             }
-            t["objectIsInstance"] = [types = recTypes](const Object& o) {
+            table["objectIsInstance"] = [types = recTypes](const Object& o) {
                 unsigned int type = getLiveCellRefType(o.ptr().mRef);
                 for (ESM::RecNameInts t : types)
                     if (t == type)
@@ -192,7 +194,7 @@ namespace MWLua
                 return false;
             };
             types[name] = ro;
-            return t;
+            return table;
         };
 
         addActorBindings(
@@ -205,6 +207,7 @@ namespace MWLua
         addLockableBindings(
             addType(ObjectTypeName::Lockable, { ESM::REC_CONT, ESM::REC_DOOR, ESM::REC_CONT4, ESM::REC_DOOR4 }));
 
+        addBodyPartBindings(addType(ObjectTypeName::BodyPart, { ESM::REC_BODY }), context);
         addCreatureBindings(addType(ObjectTypeName::Creature, { ESM::REC_CREA }, ObjectTypeName::Actor), context);
         addNpcBindings(
             addType(ObjectTypeName::NPC, { ESM::REC_INTERNAL_PLAYER, ESM::REC_NPC_ }, ObjectTypeName::Actor), context);

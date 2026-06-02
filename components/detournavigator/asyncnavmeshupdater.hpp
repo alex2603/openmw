@@ -232,6 +232,7 @@ namespace DetourNavigator
         std::vector<std::thread> mThreads;
         std::unique_ptr<DbWorker> mDbWorker;
         std::atomic_size_t mDbGetTileHits{ 0 };
+        std::atomic_size_t mPostedCount{ 0 };
 
         void process() noexcept;
 
@@ -244,11 +245,9 @@ namespace DetourNavigator
         inline JobStatus handleUpdateNavMeshStatus(UpdateNavMeshStatus status, const Job& job,
             const GuardedNavMeshCacheItem& navMeshCacheItem, const RecastMesh& recastMesh);
 
-        JobIt getNextJob();
+        inline JobIt getNextJob() noexcept;
 
         void postThreadJob(JobIt job, std::deque<JobIt>& queue);
-
-        void writeDebugFiles(const Job& job, const RecastMesh* recastMesh) const;
 
         bool lockTile(std::size_t jobId, const AgentBounds& agentBounds, const TilePosition& changedTile);
 
@@ -256,7 +255,7 @@ namespace DetourNavigator
 
         inline std::size_t getTotalJobs() const;
 
-        void cleanupLastUpdates();
+        inline void cleanupLastUpdates() noexcept;
 
         inline void waitUntilJobsDoneForNotPresentTiles(Loading::Listener* listener);
 

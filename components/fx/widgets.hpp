@@ -1,5 +1,5 @@
-#ifndef OPENMW_COMPONENTS_FX_WIDGETS_H
-#define OPENMW_COMPONENTS_FX_WIDGETS_H
+#ifndef OPENMW_COMPONENTS_FX_WIDGETS_HPP
+#define OPENMW_COMPONENTS_FX_WIDGETS_HPP
 
 #include <MyGUI_Button.h>
 #include <MyGUI_Delegate.h>
@@ -10,6 +10,7 @@
 #include <MyGUI_Widget.h>
 
 #include <algorithm>
+#include <format>
 #include <memory>
 #include <string>
 #include <vector>
@@ -17,8 +18,6 @@
 #include <osg/Vec2f>
 #include <osg/Vec3f>
 #include <osg/Vec4f>
-
-#include <components/misc/strings/format.hpp>
 
 #include "types.hpp"
 
@@ -28,7 +27,7 @@ namespace Gui
     class AutoSizedButton;
 }
 
-namespace fx
+namespace Fx
 {
     namespace Widgets
     {
@@ -46,7 +45,7 @@ namespace fx
         public:
             virtual ~EditBase() = default;
 
-            void setData(const std::shared_ptr<fx::Types::UniformBase>& uniform, Index index = None)
+            void setData(const std::shared_ptr<Fx::Types::UniformBase>& uniform, Index index = None)
             {
                 mUniform = uniform;
                 mIndex = index;
@@ -57,7 +56,7 @@ namespace fx
             virtual void toDefault() = 0;
 
         protected:
-            std::shared_ptr<fx::Types::UniformBase> mUniform;
+            std::shared_ptr<Fx::Types::UniformBase> mUniform;
             Index mIndex;
         };
 
@@ -88,7 +87,7 @@ namespace fx
             {
                 mValue = value;
                 if constexpr (std::is_floating_point_v<T>)
-                    mValueLabel->setCaption(Misc::StringUtils::format("%.3f", mValue));
+                    mValueLabel->setCaption(std::format("{:.3f}", mValue));
                 else
                     mValueLabel->setCaption(std::to_string(mValue));
 
@@ -98,8 +97,8 @@ namespace fx
                 if constexpr (std::is_fundamental_v<UType>)
                 {
                     mUniform->template setValue<UType>(mValue);
-                    range = mUniform->template getMax<UType>() - mUniform->template getMin<UType>();
-                    min = mUniform->template getMin<UType>();
+                    range = static_cast<float>(mUniform->template getMax<UType>() - mUniform->template getMin<UType>());
+                    min = static_cast<float>(mUniform->template getMin<UType>());
                 }
                 else
                 {
@@ -153,15 +152,15 @@ namespace fx
                 mDragger->eventMouseWheel += MyGUI::newDelegate(this, &EditNumber::notifyMouseWheel);
             }
 
-            void notifyMouseWheel(MyGUI::Widget* sender, int rel)
+            void notifyMouseWheel(MyGUI::Widget* /*sender*/, int rel)
             {
                 if (rel > 0)
-                    increment(mUniform->mStep);
+                    increment(static_cast<T>(mUniform->mStep));
                 else
-                    increment(-mUniform->mStep);
+                    increment(static_cast<T>(-mUniform->mStep));
             }
 
-            void notifyMouseButtonDragged(MyGUI::Widget* sender, int left, int top, MyGUI::MouseButton id)
+            void notifyMouseButtonDragged(MyGUI::Widget* /*sender*/, int left, int top, MyGUI::MouseButton id)
             {
                 if (id != MyGUI::MouseButton::Left)
                     return;
@@ -170,15 +169,15 @@ namespace fx
 
                 // allow finer tuning when shift is pressed
                 constexpr double scaling = 20.0;
-                T step
-                    = MyGUI::InputManager::getInstance().isShiftPressed() ? mUniform->mStep / scaling : mUniform->mStep;
+                T step = static_cast<T>(
+                    MyGUI::InputManager::getInstance().isShiftPressed() ? mUniform->mStep / scaling : mUniform->mStep);
 
                 if (step == 0)
                 {
                     if constexpr (std::is_integral_v<T>)
                         step = 1;
                     else
-                        step = mUniform->mStep;
+                        step = static_cast<T>(mUniform->mStep);
                 }
 
                 if (delta > 0)
@@ -189,7 +188,7 @@ namespace fx
                 mLastPointerX = left;
             }
 
-            void notifyMouseButtonPressed(MyGUI::Widget* sender, int left, int top, MyGUI::MouseButton id)
+            void notifyMouseButtonPressed(MyGUI::Widget* /*sender*/, int left, int top, MyGUI::MouseButton id)
             {
                 if (id != MyGUI::MouseButton::Left)
                     return;
@@ -210,9 +209,9 @@ namespace fx
             void notifyButtonClicked(MyGUI::Widget* sender)
             {
                 if (sender == mButtonDecrease)
-                    increment(-mUniform->mStep);
+                    increment(static_cast<T>(-mUniform->mStep));
                 else if (sender == mButtonIncrease)
-                    increment(mUniform->mStep);
+                    increment(static_cast<T>(mUniform->mStep));
             }
 
             MyGUI::Button* mButtonDecrease{ nullptr };
@@ -268,7 +267,7 @@ namespace fx
             MYGUI_RTTI_DERIVED(UniformBase)
 
         public:
-            void init(const std::shared_ptr<fx::Types::UniformBase>& uniform);
+            void init(const std::shared_ptr<Fx::Types::UniformBase>& uniform);
 
             void toDefault();
 

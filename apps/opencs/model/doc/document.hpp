@@ -12,7 +12,7 @@
 #include <apps/opencs/model/world/universalid.hpp>
 
 #include <components/files/multidircollection.hpp>
-#include <components/to_utf8/to_utf8.hpp>
+#include <components/toutf8/toutf8.hpp>
 
 #include "../world/data.hpp"
 #include "../world/idcompletionmanager.hpp"
@@ -57,8 +57,8 @@ namespace CSMDoc
         CSMWorld::Data mData;
         CSMTools::Tools mTools;
         std::filesystem::path mProjectPath;
-        Saving mSavingOperation;
-        OperationHolder mSaving;
+        Saving* mSavingOperation;
+        OperationHolder* mSaving;
         std::filesystem::path mResDir;
         Runner mRunner;
         bool mDirty;
@@ -91,7 +91,7 @@ namespace CSMDoc
         void addOptionalMagicEffect(const ESM::MagicEffect& effect);
 
     public:
-        Document(const Files::ConfigurationManager& configuration, std::vector<std::filesystem::path> files, bool new_,
+        Document(const Files::ConfigurationManager& configuration, std::vector<std::filesystem::path> files, bool isNew,
             const std::filesystem::path& savePath, const std::filesystem::path& resDir, ToUTF8::FromType encoding,
             const Files::PathContainer& dataPaths, const std::vector<std::string>& archives);
 

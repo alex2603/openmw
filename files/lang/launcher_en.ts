@@ -425,6 +425,18 @@ to default Morrowind fonts. Check this box if you still prefer original fonts ov
         <source>&lt;br&gt;&lt;b&gt;SDL_GetDisplayMode failed:&lt;/b&gt;&lt;br&gt;&lt;br&gt;</source>
         <translation></translation>
     </message>
+    <message>
+        <source>Custom window size is available only in Windowed mode.</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Window border is available only in Windowed mode.</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Windowed Fullscreen mode always uses the native display resolution.</source>
+        <translation></translation>
+    </message>
 </context>
 <context>
     <name>Launcher::ImportPage</name>
@@ -560,6 +572,46 @@ to default Morrowind fonts. Check this box if you still prefer original fonts ov
     <name>Launcher::SettingsPage</name>
     <message>
         <source>Text file (*.txt)</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Open Directory</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Open %1</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Local config directory used because it contains an openmw.cfg.
+Logs and settings changed through the launcher and in-game will be saved here.</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Local config directory used because it contains an openmw.cfg.</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Logs and settings changed through the launcher and in-game will be saved here.</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Global config directory used because local directory did not contain an openmw.cfg.
+Logs and settings changed through the launcher and in-game will be saved here.
+This is typically a symptom of a broken OpenMW installation or bad package.</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Global config directory used because local directory did not contain an openmw.cfg.</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>User config directory used because %1 contains the line config=%2.
+Logs and settings changed through the launcher and in-game will be saved here.</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>User config directory used because %1 contains the line config=%2.</source>
         <translation></translation>
     </message>
 </context>
@@ -787,14 +839,6 @@ to default Morrowind fonts. Check this box if you still prefer original fonts ov
         <translation></translation>
     </message>
     <message>
-        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Makes unarmed creature attacks able to reduce armor condition, just as attacks from NPCs and armed creatures.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation></translation>
-    </message>
-    <message>
-        <source>Unarmed Creature Attacks Damage Armor</source>
-        <translation></translation>
-    </message>
-    <message>
         <source>Factor Strength into Hand-to-Hand Combat</source>
         <translation></translation>
     </message>
@@ -975,7 +1019,6 @@ to default Morrowind fonts. Check this box if you still prefer original fonts ov
     <message>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Normally environment map reflections aren&apos;t affected by lighting, which makes environment-mapped (and thus bump-mapped objects) glow in the dark.
                   Morrowind Code Patch includes an option to remedy that by doing environment-mapping before applying lighting, this is the equivalent of that option.
-                  Affected objects will use shaders.
                   &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation></translation>
     </message>
@@ -1210,17 +1253,12 @@ to default Morrowind fonts. Check this box if you still prefer original fonts ov
     </message>
     <message>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Set the internal handling of light sources.&lt;/p&gt;
-&lt;p&gt; &quot;Legacy&quot; always uses 8 lights per object. It provides results most similar to Morrowind&apos;s lighting.&lt;/p&gt;
-&lt;p&gt;&quot;Shaders (compatibility)&quot; removes the 8 light limit. This mode also enables lighting on groundcover. It is recommended to use this with older hardware and a light limit closer to 8.&lt;/p&gt;
+&lt;p&gt;&quot;Shaders (compatibility)&quot; It is recommended to use this with older hardware and a light limit closer to 8.&lt;/p&gt;
 &lt;p&gt; &quot;Shaders&quot; carries all of the benefits that &quot;Shaders (compatibility)&quot; does, but uses a modern approach that allows for a higher max lights count with little to no performance penalties on modern hardware.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation></translation>
     </message>
     <message>
         <source>Lighting Method</source>
-        <translation></translation>
-    </message>
-    <message>
-        <source>Legacy</source>
         <translation></translation>
     </message>
     <message>
@@ -1445,6 +1483,34 @@ to default Morrowind fonts. Check this box if you still prefer original fonts ov
     </message>
     <message>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;If enabled - makes transitions between different animations/poses much smoother. Also allows to load animation blending config YAML files that can be bundled with animations in order to customise blending styles.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Make it easier to use game menus with a controller.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Enable Controller Menus</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;When using controller menus, make tooltips visible by default.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Show Controller Tooltips By Default</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Doppler Factor</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Controls the strength of the Doppler effect. Zero means it is completely disabled.&lt;/p&gt;&lt;p&gt;The Doppler effect increases or decreases the pitch of sounds relative to the velocity of the sound source and the listener.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Active Config Directories</source>
         <translation></translation>
     </message>
 </context>

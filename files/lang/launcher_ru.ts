@@ -427,6 +427,18 @@ to default Morrowind fonts. Check this box if you still prefer original fonts ov
         <source>&lt;br&gt;&lt;b&gt;SDL_GetDisplayMode failed:&lt;/b&gt;&lt;br&gt;&lt;br&gt;</source>
         <translation>&lt;br&gt;&lt;b&gt;Вызов SDL_GetDisplayMode завершился с ошибкой:&lt;/b&gt;&lt;br&gt;&lt;br&gt;</translation>
     </message>
+    <message>
+        <source>Custom window size is available only in Windowed mode.</source>
+        <translation>Особый размер окна доступен только в оконном режиме.</translation>
+    </message>
+    <message>
+        <source>Window border is available only in Windowed mode.</source>
+        <translation>Рамка окна доступна только в оконном режиме.</translation>
+    </message>
+    <message>
+        <source>Windowed Fullscreen mode always uses the native display resolution.</source>
+        <translation>Режим &quot;Оконный без полей&quot; всегда использует родное разрешение экрана.</translation>
+    </message>
 </context>
 <context>
     <name>Launcher::ImportPage</name>
@@ -563,6 +575,50 @@ to default Morrowind fonts. Check this box if you still prefer original fonts ov
     <message>
         <source>Text file (*.txt)</source>
         <translation>Текстовый файл (*.txt)</translation>
+    </message>
+    <message>
+        <source>Open Directory</source>
+        <translation>Открыть директорию</translation>
+    </message>
+    <message>
+        <source>Open %1</source>
+        <translation>Открыть %1</translation>
+    </message>
+    <message>
+        <source>Local config directory used because it contains an openmw.cfg.
+Logs and settings changed through the launcher and in-game will be saved here.</source>
+        <translation>Локальная директория конфигурации используется, потому что содержит openmw.cfg.
+Лог-файлы и настройки, измененные через лаунчер и в игре, будут сохранены здесь.</translation>
+    </message>
+    <message>
+        <source>Local config directory used because it contains an openmw.cfg.</source>
+        <translation>Локальная директория конфигурации используется, потому что содержит openmw.cfg.</translation>
+    </message>
+    <message>
+        <source>Logs and settings changed through the launcher and in-game will be saved here.</source>
+        <translation>Лог-файлы и настройки, измененные через лаунчер и в игре, будут сохранены здесь.</translation>
+    </message>
+    <message>
+        <source>Global config directory used because local directory did not contain an openmw.cfg.
+Logs and settings changed through the launcher and in-game will be saved here.
+This is typically a symptom of a broken OpenMW installation or bad package.</source>
+        <translation>Глобальная директория конфигурации используется, потому что локальная директория не содержит openmw.cfg.
+Лог-файлы и настройки, измененные через лаунчер и в игре, будут сохранены здесь.
+Обычно это знак, что OpenMW установлен или упакован некорректно.</translation>
+    </message>
+    <message>
+        <source>Global config directory used because local directory did not contain an openmw.cfg.</source>
+        <translation>Глобальная директория конфигурации используется, потому что локальная директория не содержит openmw.cfg.</translation>
+    </message>
+    <message>
+        <source>User config directory used because %1 contains the line config=%2.
+Logs and settings changed through the launcher and in-game will be saved here.</source>
+        <translation>Эта пользовательская директория конфигурации используется, потому что в %1 содержится строка config=%2.
+Лог-файлы и настройки, измененные через лаунчер и в игре, будут сохранены здесь.</translation>
+    </message>
+    <message>
+        <source>User config directory used because %1 contains the line config=%2.</source>
+        <translation>Эта пользовательская директория конфигурации используется, потому что в %1 содержится строка config=%2.</translation>
     </message>
 </context>
 <context>
@@ -725,14 +781,6 @@ to default Morrowind fonts. Check this box if you still prefer original fonts ov
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Позволяет любым персонажам плыть возле поверхности воды, чтобы следовать за другим персонажем, вне зависимости от того, могут они плыть, или нет. Работает только с навигационной сеткой.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Makes unarmed creature attacks able to reduce armor condition, just as attacks from NPCs and armed creatures.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Позволяет атакам существ без оружия повреждать броню цели, по аналогии с атаками оружием.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
-    </message>
-    <message>
-        <source>Unarmed Creature Attacks Damage Armor</source>
-        <translation>Атаки существ повреждают броню</translation>
-    </message>
-    <message>
         <source>Off</source>
         <translation>Отключено</translation>
     </message>
@@ -879,11 +927,9 @@ to default Morrowind fonts. Check this box if you still prefer original fonts ov
     <message>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Normally environment map reflections aren&apos;t affected by lighting, which makes environment-mapped (and thus bump-mapped objects) glow in the dark.
                   Morrowind Code Patch includes an option to remedy that by doing environment-mapping before applying lighting, this is the equivalent of that option.
-                  Affected objects will use shaders.
                   &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Обычно освещение не должно влиять на карты окружения, из-за чего объекты с картами окружения (в том числе объекты с рельефными текстурами) светятся в темноте.
                   Morrowind Code Patch предоставляет способ обойти эту проблему, применяя карты окружения перед применением освещения, аналогично этой опции.
-                  Объекты с картами окружения будут использовать шейдеры.
                   &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
@@ -1438,17 +1484,11 @@ to default Morrowind fonts. Check this box if you still prefer original fonts ov
     </message>
     <message>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Set the internal handling of light sources.&lt;/p&gt;
-&lt;p&gt; &quot;Legacy&quot; always uses 8 lights per object. It provides results most similar to Morrowind&apos;s lighting.&lt;/p&gt;
-&lt;p&gt;&quot;Shaders (compatibility)&quot; removes the 8 light limit. This mode also enables lighting on groundcover. It is recommended to use this with older hardware and a light limit closer to 8.&lt;/p&gt;
+&lt;p&gt;&quot;Shaders (compatibility)&quot; It is recommended to use this with older hardware and a light limit closer to 8.&lt;/p&gt;
 &lt;p&gt; &quot;Shaders&quot; carries all of the benefits that &quot;Shaders (compatibility)&quot; does, but uses a modern approach that allows for a higher max lights count with little to no performance penalties on modern hardware.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Задает способ обработки источников света.&lt;/p&gt;
-&lt;p&gt; &quot;Устаревший&quot; всегда использует 8 источников света на объект и выдает освещение, наиболее близкое к таковому в оригинальной игре.&lt;/p&gt;
-&lt;p&gt;&quot;Шейдеры (режим совместимости)&quot; убирает ограничение в 8 источников света. Этот режим также позволяет освещению влиять на анимированную траву. Рекомендуется использовать этот режим на устаревшем аппаратном обеспечении и с количеством источников света на объект около 8.&lt;/p&gt;
+&lt;p&gt;&quot;Шейдеры (режим совместимости)&quot; Рекомендуется использовать этот режим на устаревшем аппаратном обеспечении и с количеством источников света на объект около 8.&lt;/p&gt;
 &lt;p&gt; &quot;Шейдеры&quot; работает аналогично режиму &quot;Шейдеры (режим совместимости)&quot; но использует более современный подход, позволяющий использовать большее количество источников света с минимальным влиянием на производительность на современном аппаратном обеспечении.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
-    </message>
-    <message>
-        <source>Legacy</source>
-        <translation>Устаревший</translation>
     </message>
     <message>
         <source>Shaders (compatibility)</source>
@@ -1461,6 +1501,34 @@ to default Morrowind fonts. Check this box if you still prefer original fonts ov
     <message>
         <source>Use the Camera as the Sound Listener</source>
         <translation>Использовать камеру как слушателя</translation>
+    </message>
+    <message>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Make it easier to use game menus with a controller.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Упрощает использование игровых меню на геймпаде.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+    </message>
+    <message>
+        <source>Enable Controller Menus</source>
+        <translation>Интерфейс для геймпадов</translation>
+    </message>
+    <message>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;When using controller menus, make tooltips visible by default.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Показывать подсказки интерфейса для геймпадов по умолчанию.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+    </message>
+    <message>
+        <source>Show Controller Tooltips By Default</source>
+        <translation>Подсказки для геймпадов по умолчанию</translation>
+    </message>
+    <message>
+        <source>Doppler Factor</source>
+        <translation>Множитель эффекта Доплера</translation>
+    </message>
+    <message>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Controls the strength of the Doppler effect. Zero means it is completely disabled.&lt;/p&gt;&lt;p&gt;The Doppler effect increases or decreases the pitch of sounds relative to the velocity of the sound source and the listener.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Определяет силу эффекта Доплера. Нулевое значение означает, что эффект отключен полностью.&lt;/p&gt;&lt;p&gt;Эффект Доплера увеличивает или уменьшает высоту звуков в зависимости от скорости источника звука и слушателя.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+    </message>
+    <message>
+        <source>Active Config Directories</source>
+        <translation>Активные директории конфигурации</translation>
     </message>
 </context>
 </TS>

@@ -5,9 +5,9 @@ local I = require('openmw.interfaces')
 -- Table with information needed to commit crimes.
 -- @type CommitCrimeInputs
 -- @field openmw.core#GameObject victim The victim of the crime (optional)
--- @field openmw.types#OFFENSE_TYPE type The type of the crime to commit. See @{openmw.types#OFFENSE_TYPE} (required)
+-- @field openmw.types#OFFENSE_TYPE_IDS type The type of the crime to commit. See @{openmw.types#OFFENSE_TYPE_IDS} (required)
 -- @field #string faction ID of the faction the crime is committed against (optional)
--- @field #number arg The amount to increase the player bounty by, if the crime type is theft. Ignored otherwise (optional, defaults to 0)
+-- @field #number arg The amount to increase the player bounty by if the crime type is theft. Ignored otherwise (optional, defaults to 0)
 -- @field #boolean victimAware Whether the victim is aware of the crime (optional, defaults to false)
 
 ---
@@ -20,11 +20,12 @@ return {
     ---
     -- Allows to utilize built-in crime mechanics.
     -- @module Crimes
+    -- @context global
     -- @usage require('openmw.interfaces').Crimes
     interface = {
         --- Interface version
         -- @field [parent=#Crimes] #number version
-        version = 1,
+        version = 2,
 
         ---
         -- Commits a crime as if done through an in-game action. Can only be used in global context.
@@ -42,7 +43,7 @@ return {
                 "faction id passed to commitCrime must be a string or nil")
             assert(type(options.arg) == "number" or options.arg == nil,
                 "arg value passed to commitCrime must be a number or nil")
-            assert(type(options.victimAware) == "number" or options.victimAware == nil,
+            assert(type(options.victimAware) == "boolean" or options.victimAware == nil,
                 "victimAware value passed to commitCrime must be a boolean or nil")
 
             assert(options.type ~= nil, "crime type passed to commitCrime cannot be nil")

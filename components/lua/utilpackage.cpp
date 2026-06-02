@@ -8,6 +8,9 @@
 
 #include <components/misc/color.hpp>
 #include <components/misc/mathutil.hpp>
+#include <components/misc/strings/algorithm.hpp>
+
+#include <MyGUI_StringUtility.h>
 
 #include "luastate.hpp"
 #include "util.hpp"
@@ -179,9 +182,9 @@ namespace LuaUtil
         }
     }
 
-    sol::table initUtilPackage(lua_State* L)
+    sol::table initUtilPackage(lua_State* state)
     {
-        sol::state_view lua(L);
+        sol::state_view lua(state);
         sol::table util(lua, sol::create);
 
         // Lua bindings for Vec2
@@ -237,11 +240,34 @@ namespace LuaUtil
         colorType["asRgba"] = [](const Misc::Color& c) { return Vec4(c.r(), c.g(), c.b(), c.a()); };
         colorType["asRgb"] = [](const Misc::Color& c) { return Vec3(c.r(), c.g(), c.b()); };
         colorType["asHex"] = [](const Misc::Color& c) { return c.toHex(); };
+        colorType[sol::meta_function::equal_to] = [](const Misc::Color& a, const Misc::Color& b) { return a == b; };
 
         sol::table color(lua, sol::create);
         color["rgba"] = [](float r, float g, float b, float a) { return Misc::Color(r, g, b, a); };
         color["rgb"] = [](float r, float g, float b) { return Misc::Color(r, g, b, 1); };
         color["hex"] = [](std::string_view hex) { return Misc::Color::fromHex(hex); };
+        color["commaString"] = [](std::string_view str) {
+            auto wrongChars = std::count_if(
+                str.begin(), str.end(), [](unsigned char c) { return !std::isdigit(c) && c != ' ' && c != ','; });
+
+            if (wrongChars != 0)
+            {
+                throw std::runtime_error("Invalid comma-separated color: " + std::string(str));
+            }
+
+            std::vector<std::string> rgba;
+            Misc::StringUtils::split(str, rgba, ",");
+            if (rgba.size() != 3 && rgba.size() != 4)
+            {
+                throw std::runtime_error("Invalid comma-separated color: " + std::string(str));
+            }
+
+            if (rgba.size() == 3)
+                rgba.push_back("255");
+
+            return Misc::Color(MyGUI::utility::parseInt(rgba[0]) / 255.f, MyGUI::utility::parseInt(rgba[1]) / 255.f,
+                MyGUI::utility::parseInt(rgba[2]) / 255.f, MyGUI::utility::parseInt(rgba[3]) / 255.f);
+        };
         util["color"] = LuaUtil::makeReadOnly(color);
 
         // Lua bindings for Transform
@@ -269,25 +295,29 @@ namespace LuaUtil
                     return res;
                 });
         transMType[sol::meta_function::to_string] = [](const TransformM& m) {
-            osg::Vec3f trans, scale;
-            osg::Quat rotation, so;
+            osg::Vec3f trans;
+            osg::Vec3f scale;
+            osg::Quat rotation;
+            osg::Quat so;
             m.mM.decompose(trans, rotation, scale, so);
-            osg::Quat::value_type rot_angle, so_angle;
-            osg::Vec3f rot_axis, so_axis;
-            rotation.getRotate(rot_angle, rot_axis);
-            so.getRotate(so_angle, so_axis);
+            osg::Quat::value_type rotationAngle;
+            osg::Quat::value_type soAngle;
+            osg::Vec3f rotationAxis;
+            osg::Vec3f soAxis;
+            rotation.getRotate(rotationAngle, rotationAxis);
+            so.getRotate(soAngle, soAxis);
             std::stringstream ss;
             ss << "TransformM{ ";
             if (trans.length2() > 0)
                 ss << "move(" << trans.x() << ", " << trans.y() << ", " << trans.z() << ") ";
-            if (rot_angle != 0)
-                ss << "rotation(angle=" << rot_angle << ", axis=(" << rot_axis.x() << ", " << rot_axis.y() << ", "
-                   << rot_axis.z() << ")) ";
+            if (rotationAngle != 0)
+                ss << "rotation(angle=" << rotationAngle << ", axis=(" << rotationAxis.x() << ", " << rotationAxis.y()
+                   << ", " << rotationAxis.z() << ")) ";
             if (scale.x() != 1 || scale.y() != 1 || scale.z() != 1)
                 ss << "scale(" << scale.x() << ", " << scale.y() << ", " << scale.z() << ") ";
-            if (so_angle != 0)
-                ss << "rotation(angle=" << so_angle << ", axis=(" << so_axis.x() << ", " << so_axis.y() << ", "
-                   << so_axis.z() << ")) ";
+            if (soAngle != 0)
+                ss << "rotation(angle=" << soAngle << ", axis=(" << soAxis.x() << ", " << soAxis.y() << ", "
+                   << soAxis.z() << ")) ";
             ss << "}";
             return ss.str();
         };
@@ -351,16 +381,14 @@ namespace LuaUtil
             return std::make_tuple(angles.z(), angles.y(), angles.x());
         };
 
+        sol::function luaUtilLoader = lua["loadInternalLib"]("util");
+        sol::table utils = luaUtilLoader();
+        for (const auto& [key, value] : utils)
+            util[key.as<std::string>()] = value;
+
         // Utility functions
-        util["clamp"] = [](double value, double from, double to) { return std::clamp(value, from, to); };
-        // NOTE: `util["clamp"] = std::clamp<float>` causes error 'AddressSanitizer: stack-use-after-scope'
-        util["normalizeAngle"] = &Misc::normalizeAngle;
         util["makeReadOnly"] = [](const sol::table& tbl) { return makeReadOnly(tbl, /*strictIndex=*/false); };
         util["makeStrictReadOnly"] = [](const sol::table& tbl) { return makeReadOnly(tbl, /*strictIndex=*/true); };
-        util["remap"] = [](double value, double min, double max, double newMin, double newMax) {
-            return newMin + (value - min) * (newMax - newMin) / (max - min);
-        };
-        util["round"] = [](double value) { return round(value); };
 
         if (lua["bit32"] != sol::nil)
         {
@@ -391,12 +419,12 @@ namespace LuaUtil
         }
 
         util["loadCode"] = [](const std::string& code, const sol::table& env, sol::this_state s) {
-            sol::state_view lua(s);
-            sol::load_result res = lua.load(code, "", sol::load_mode::text);
+            sol::state_view thisState(s);
+            sol::load_result res = thisState.load(code, "", sol::load_mode::text);
             if (!res.valid())
                 throw std::runtime_error("Lua error: " + res.get<std::string>());
             sol::function fn = res;
-            sol::environment newEnv(lua, sol::create, env);
+            sol::environment newEnv(thisState, sol::create, env);
             newEnv[sol::metatable_key][sol::meta_function::new_index] = env;
             sol::set_environment(newEnv, fn);
             return fn;

@@ -15,7 +15,7 @@
 #include "../mwbase/soundmanager.hpp"
 
 #include "regionsoundselector.hpp"
-#include "sound_buffer.hpp"
+#include "soundbuffer.hpp"
 #include "type.hpp"
 #include "watersoundupdater.hpp"
 
@@ -37,8 +37,8 @@ namespace MWWorld
 
 namespace MWSound
 {
-    class Sound_Output;
-    struct Sound_Decoder;
+    class SoundOutput;
+    struct SoundDecoder;
     class SoundBase;
     class Sound;
     class Stream;
@@ -50,7 +50,7 @@ namespace MWSound
     {
         const VFS::Manager* mVFS;
 
-        std::unique_ptr<Sound_Output> mOutput;
+        std::unique_ptr<SoundOutput> mOutput;
 
         WaterSoundUpdater mWaterSoundUpdater;
 
@@ -60,7 +60,7 @@ namespace MWSound
 
         Misc::ObjectPool<Stream> mStreams;
 
-        typedef std::pair<SoundPtr, Sound_Buffer*> SoundBufferRefPair;
+        typedef std::pair<SoundPtr, SoundBuffer*> SoundBufferRefPair;
         typedef std::vector<SoundBufferRefPair> SoundBufferRefPairList;
 
         struct ActiveSound
@@ -92,6 +92,7 @@ namespace MWSound
         osg::Vec3f mListenerPos;
         osg::Vec3f mListenerDir;
         osg::Vec3f mListenerUp;
+        osg::Vec3f mListenerVel;
 
         int mPausedSoundTypes[BlockerType::MaxCount] = {};
 
@@ -109,7 +110,7 @@ namespace MWSound
 
         Sound* mCurrentRegionSound;
 
-        Sound_Buffer* insertSound(const std::string& soundId, const ESM::Sound* sound);
+        SoundBuffer* insertSound(const std::string& soundId, const ESM::Sound* sound);
 
         // returns a decoder to start streaming, or nullptr if the sound was not found
         DecoderPtr loadVoice(VFS::Path::NormalizedView voicefile);
@@ -126,9 +127,9 @@ namespace MWSound
 
         bool remove3DSoundAtDistance(PlayMode mode, const MWWorld::ConstPtr& ptr) const;
 
-        Sound* playSound(Sound_Buffer* sfx, float volume, float pitch, Type type = Type::Sfx,
+        Sound* playSound(SoundBuffer* sfx, float volume, float pitch, Type type = Type::Sfx,
             PlayMode mode = PlayMode::Normal, float offset = 0);
-        Sound* playSound3D(const MWWorld::ConstPtr& ptr, Sound_Buffer* sfx, float volume, float pitch, Type type,
+        Sound* playSound3D(const MWWorld::ConstPtr& ptr, SoundBuffer* sfx, float volume, float pitch, Type type,
             PlayMode mode, float offset);
 
         void updateSounds(float duration);
@@ -144,7 +145,7 @@ namespace MWSound
             PlaySound,
         };
 
-        std::pair<WaterSoundAction, Sound_Buffer*> getWaterSoundAction(
+        std::pair<WaterSoundAction, SoundBuffer*> getWaterSoundAction(
             const WaterSoundUpdate& update, const MWWorld::Cell* cell) const;
 
         SoundManager(const SoundManager& rhs);
@@ -152,9 +153,9 @@ namespace MWSound
 
     protected:
         DecoderPtr getDecoder();
-        friend class OpenAL_Output;
+        friend class OpenALOutput;
 
-        void stopSound(Sound_Buffer* sfx, const MWWorld::ConstPtr& ptr);
+        void stopSound(SoundBuffer* sfx, const MWWorld::ConstPtr& ptr);
         ///< Stop the given object from playing given sound buffer.
 
     public:
@@ -218,7 +219,7 @@ namespace MWSound
         ///< Play a sound, independently of 3D-position
         ///< @param offset Number of seconds into the sound to start playback.
 
-        Sound* playSound(std::string_view fileName, float volume, float pitch, Type type = Type::Sfx,
+        Sound* playSound(VFS::Path::NormalizedView fileName, float volume, float pitch, Type type = Type::Sfx,
             PlayMode mode = PlayMode::Normal, float offset = 0) override;
         ///< Play a sound, independently of 3D-position
         ///< @param offset Number of seconds into the sound to start playback.
@@ -229,8 +230,8 @@ namespace MWSound
         ///< Play_NoTrack is specified.
         ///< @param offset Number of seconds into the sound to start playback.
 
-        Sound* playSound3D(const MWWorld::ConstPtr& reference, std::string_view fileName, float volume, float pitch,
-            Type type = Type::Sfx, PlayMode mode = PlayMode::Normal, float offset = 0) override;
+        Sound* playSound3D(const MWWorld::ConstPtr& reference, VFS::Path::NormalizedView fileName, float volume,
+            float pitch, Type type = Type::Sfx, PlayMode mode = PlayMode::Normal, float offset = 0) override;
         ///< Play a 3D sound attached to an MWWorld::Ptr. Will be updated automatically with the Ptr's position, unless
         ///< Play_NoTrack is specified.
         ///< @param offset Number of seconds into the sound to start playback.
@@ -248,7 +249,7 @@ namespace MWSound
         void stopSound3D(const MWWorld::ConstPtr& reference, const ESM::RefId& soundId) override;
         ///< Stop the given object from playing the given sound.
 
-        void stopSound3D(const MWWorld::ConstPtr& reference, std::string_view fileName) override;
+        void stopSound3D(const MWWorld::ConstPtr& reference, VFS::Path::NormalizedView fileName) override;
         ///< Stop the given object from playing the given sound.
 
         void stopSound3D(const MWWorld::ConstPtr& reference) override;
@@ -266,7 +267,7 @@ namespace MWSound
         bool getSoundPlaying(const MWWorld::ConstPtr& reference, const ESM::RefId& soundId) const override;
         ///< Is the given sound currently playing on the given object?
 
-        bool getSoundPlaying(const MWWorld::ConstPtr& reference, std::string_view fileName) const override;
+        bool getSoundPlaying(const MWWorld::ConstPtr& reference, VFS::Path::NormalizedView fileName) const override;
         ///< Is the given sound currently playing on the given object?
 
         void pauseSounds(MWSound::BlockerType blocker, int types = int(Type::Mask)) override;
@@ -282,6 +283,8 @@ namespace MWSound
 
         void setListenerPosDir(
             const osg::Vec3f& pos, const osg::Vec3f& dir, const osg::Vec3f& up, bool underwater) override;
+
+        void setListenerVel(const osg::Vec3f& vel) override;
 
         void updatePtr(const MWWorld::ConstPtr& old, const MWWorld::ConstPtr& updated) override;
 

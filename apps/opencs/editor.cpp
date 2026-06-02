@@ -34,11 +34,9 @@
 #include <components/misc/rng.hpp>
 #include <components/nifosg/nifloader.hpp>
 #include <components/settings/settings.hpp>
-#include <components/to_utf8/to_utf8.hpp>
+#include <components/toutf8/toutf8.hpp>
 
 #include "view/doc/viewmanager.hpp"
-
-using namespace Fallback;
 
 CS::Editor::Editor(int argc, char** argv)
     : mConfigVariables(readConfiguration())
@@ -124,8 +122,16 @@ boost::program_options::variables_map CS::Editor::readConfiguration()
             ->default_value(std::vector<std::string>(), "fallback-archive")
             ->multitoken());
     addOption("fallback",
-        boost::program_options::value<FallbackMap>()->default_value(FallbackMap(), "")->multitoken()->composing(),
+        boost::program_options::value<Fallback::FallbackMap>()
+            ->default_value(Fallback::FallbackMap(), "")
+            ->multitoken()
+            ->composing(),
         "fallback values");
+    addOption("content",
+        boost::program_options::value<std::vector<std::string>>()
+            ->default_value(std::vector<std::string>(), "")
+            ->multitoken()
+            ->composing());
     Files::ConfigurationManager::addCommonOptions(desc);
 
     boost::program_options::notify(variables);
@@ -141,7 +147,7 @@ std::pair<Files::PathContainer, std::vector<std::string>> CS::Editor::readConfig
 {
     boost::program_options::variables_map& variables = mConfigVariables;
 
-    Fallback::Map::init(variables["fallback"].as<FallbackMap>().mMap);
+    Fallback::Map::init(variables["fallback"].as<Fallback::FallbackMap>().mMap);
 
     mEncodingName = variables["encoding"].as<std::string>();
     mDocumentManager.setEncoding(ToUTF8::calculateEncoding(mEncodingName));
@@ -165,7 +171,7 @@ std::pair<Files::PathContainer, std::vector<std::string>> CS::Editor::readConfig
     if (!local.empty())
     {
         std::filesystem::create_directories(local);
-        dataLocal.push_back(local);
+        dataLocal.push_back(std::move(local));
     }
     mCfgMgr.filterOutNonExistingPaths(dataDirs);
     mCfgMgr.filterOutNonExistingPaths(dataLocal);
@@ -186,12 +192,21 @@ std::pair<Files::PathContainer, std::vector<std::string>> CS::Editor::readConfig
         QApplication::exit(1);
     }
 
-    dataDirs.insert(dataDirs.end(), dataLocal.begin(), dataLocal.end());
+    if (!dataLocal.empty())
+        dataDirs.insert(dataDirs.begin(), dataLocal.begin(), dataLocal.end());
 
     dataDirs.insert(dataDirs.begin(), mResources / "vfs");
 
-    // iterate the data directories and add them to the file dialog for loading
     mFileDialog.addFiles(dataDirs);
+
+    if (!variables["content"].empty())
+    {
+        QStringList contentOrder;
+        for (const auto& c : variables["content"].as<std::vector<std::string>>())
+            contentOrder.append(QString::fromStdString(c));
+
+        mFileDialog.setContentList(contentOrder, true);
+    }
 
     return std::make_pair(dataDirs, variables["fallback-archive"].as<std::vector<std::string>>());
 }

@@ -189,6 +189,31 @@ namespace MWInput
         return mMouseManager->getMouseMoveY();
     }
 
+    void InputManager::warpMouseToWidget(MyGUI::Widget* widget)
+    {
+        // This is currently used to simulate mouse movement when the gamepad UI is used.
+        // Sometimes this is called in reaction to layout changes.
+        // It's a bad idea to do this if the user triggered one with the actual mouse.
+
+        // Don't warp if a gamepad wasn't in use when this was triggered.
+        if (!joystickLastUsed())
+            return;
+
+        // Don't warp if the mouse button is actively being held.
+        // TODO: this should be a method somewhere so that it can be reused in, e.g., Lua bindings
+        if (SDL_GetMouseState(nullptr, nullptr) & SDL_BUTTON_LMASK)
+            return;
+
+        // Don't warp if an emulated mouse press is occurring.
+        if (isGamepadGuiCursorEnabled() && isControllerButtonPressed(SDL_CONTROLLER_BUTTON_A))
+            return;
+
+        MWBase::Environment::get().getWindowManager()->setCursorVisible(false);
+        mMouseManager->warpMouseToWidget(widget);
+        mMouseManager->injectMouseMove(1, 0, 0);
+        MWBase::Environment::get().getWindowManager()->setCursorActive(true);
+    }
+
     const std::initializer_list<int>& InputManager::getActionKeySorting()
     {
         return mBindingsManager->getActionKeySorting();
@@ -204,7 +229,7 @@ namespace MWInput
         mBindingsManager->enableDetectingBindingMode(action, keyboard);
     }
 
-    int InputManager::countSavedGameRecords() const
+    size_t InputManager::countSavedGameRecords() const
     {
         return mControlSwitch->countSavedGameRecords();
     }
@@ -242,8 +267,23 @@ namespace MWInput
         return mControllerManager->joystickLastUsed();
     }
 
+    std::string InputManager::getControllerButtonIcon(int button)
+    {
+        return mControllerManager->getControllerButtonIcon(button);
+    }
+
+    std::string InputManager::getControllerAxisIcon(int axis)
+    {
+        return mControllerManager->getControllerAxisIcon(axis);
+    }
+
     void InputManager::executeAction(int action)
     {
         mActionManager->executeAction(action);
+    }
+
+    void InputManager::saveBindings()
+    {
+        mBindingsManager->saveBindings();
     }
 }

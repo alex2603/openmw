@@ -20,7 +20,7 @@
 #include <components/resource/niffilemanager.hpp>
 #include <components/resource/scenemanager.hpp>
 #include <components/settings/settings.hpp>
-#include <components/to_utf8/to_utf8.hpp>
+#include <components/toutf8/toutf8.hpp>
 #include <components/version/version.hpp>
 #include <components/vfs/manager.hpp>
 #include <components/vfs/registerarchives.hpp>
@@ -53,8 +53,6 @@ namespace
 
     bpo::options_description makeOptionsDescription()
     {
-        using Fallback::FallbackMap;
-
         bpo::options_description result;
         auto addOption = result.add_options();
         addOption("help", "print help message");
@@ -87,7 +85,8 @@ namespace
             "\n\twin1251 - Cyrillic alphabet such as Russian, Bulgarian, Serbian Cyrillic and other languages\n"
             "\n\twin1252 - Western European (Latin) alphabet, used by default");
 
-        addOption("fallback", bpo::value<FallbackMap>()->default_value(FallbackMap(), "")->multitoken()->composing(),
+        addOption("fallback",
+            bpo::value<Fallback::FallbackMap>()->default_value(Fallback::FallbackMap(), "")->multitoken()->composing(),
             "fallback values");
 
         Files::ConfigurationManager::addCommonOptions(result);
@@ -126,6 +125,7 @@ namespace
         }
 
         Files::ConfigurationManager config;
+        config.processPaths(variables, std::filesystem::current_path());
         config.readConfiguration(variables, desc);
 
         Debug::setupLogging(config.getLogPath(), applicationName);
@@ -155,7 +155,7 @@ namespace
 
         VFS::Manager vfs;
 
-        VFS::registerArchives(&vfs, fileCollections, archives, true);
+        VFS::registerArchives(&vfs, fileCollections, archives, true, &encoder.getStatelessEncoder());
 
         Settings::Manager::load(config);
 

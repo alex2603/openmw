@@ -1,10 +1,13 @@
 #ifndef OPENMW_COMPONENTS_TESTING_UTIL_H
 #define OPENMW_COMPONENTS_TESTING_UTIL_H
 
+#include <chrono>
 #include <filesystem>
 #include <initializer_list>
 #include <memory>
 #include <sstream>
+
+#include <gtest/gtest.h>
 
 #include <components/misc/strings/conversion.hpp>
 #include <components/vfs/archive.hpp>
@@ -14,24 +17,41 @@
 
 namespace TestingOpenMW
 {
-    inline std::filesystem::path outputFilePath(const std::string name)
+    inline std::filesystem::path outputDir()
     {
-        std::filesystem::path dir("tests_output");
-        std::filesystem::create_directory(dir);
+        static const std::string run = std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
+        std::filesystem::path dir = std::filesystem::temp_directory_path() / "openmw" / "tests" / run;
+        std::filesystem::create_directories(dir);
+        return dir;
+    }
+
+    inline std::filesystem::path outputFilePath(std::string_view name)
+    {
+        std::filesystem::path dir = outputDir();
         return dir / Misc::StringUtils::stringToU8String(name);
+    }
+
+    inline std::filesystem::path outputDirPath(const std::filesystem::path& subpath)
+    {
+        std::filesystem::path path = outputDir();
+        path /= subpath;
+        std::filesystem::create_directories(path);
+        return path;
+    }
+
+    inline std::filesystem::path currentTestDirPath()
+    {
+        return outputDirPath(
+            std::format("{}.{}", ::testing::UnitTest::GetInstance()->current_test_info()->test_suite_name(),
+                ::testing::UnitTest::GetInstance()->current_test_info()->name()));
     }
 
     inline std::filesystem::path outputFilePathWithSubDir(const std::filesystem::path& subpath)
     {
-        std::filesystem::path path("tests_output");
+        std::filesystem::path path = outputDir();
         path /= subpath;
         std::filesystem::create_directories(path.parent_path());
         return path;
-    }
-
-    inline std::filesystem::path temporaryFilePath(const std::string name)
-    {
-        return std::filesystem::temp_directory_path() / name;
     }
 
     class VFSTestFile : public VFS::File
@@ -44,7 +64,9 @@ namespace TestingOpenMW
 
         Files::IStreamPtr open() override { return std::make_unique<std::stringstream>(mContent, std::ios_base::in); }
 
-        std::filesystem::path getPath() override { return "TestFile"; }
+        std::filesystem::file_time_type getLastModified() const override { return {}; }
+
+        std::string getStem() const override { return "TestFile"; }
 
     private:
         const std::string mContent;

@@ -10,7 +10,8 @@ If you feel your name is missing from this list, please add it to `AUTHORS.md`.
 Programmers
 -----------
 
-    Bret Curtis (psi29a) - Project leader 2019-present
+    Alexey Dobrokhotov (Capo) - Project leader 2025-present
+    Bret Curtis (psi29a) - Project leader 2019-2025
     Marc Zinnschlag (Zini) - Project leader 2010-2018
     Nicolay Korslund - Project leader 2008-2010
     scrawl - Top contributor
@@ -49,10 +50,10 @@ Programmers
     Berulacks
     Bo Svensson
     Britt Mathis (galdor557)
-    Capostrophic
     Carl Maxwell
     cc9cii
     Cédric Mocquillon
+    Charles Horn
     Chris Boyce (slothlife)
     Chris Robinson (KittyCat)
     Chris Vigil
@@ -98,6 +99,7 @@ Programmers
     Gohan1989
     gugus/gus
     guidoj
+    Hailey Tribble (daisyhasacat)
     Haoda Wang (h313)
     holorat
     hristoast
@@ -196,7 +198,7 @@ Programmers
     Qlonever
     Radu-Marius Popovici (rpopovici)
     Rafael Moura (dhustkoder)
-    Randy Davin (Kindi)
+    Randy Davin (Kuyondo)
     rdimesio
     rexelion
     riothamus
@@ -219,6 +221,7 @@ Programmers
     sir_herrbatka
     smbas
     Sophie Kirschner (pineapplemachine)
+    Sophia Polfliet (Sophie~<3)
     spycrab
     Stefan Galowicz (bogglez)
     Stanislav Bobrov (Jiub)
@@ -232,11 +235,11 @@ Programmers
     Tess (tescoShoppah)
     thegriglat
     Thomas Luppi (Digmaster)
+    Tim Hagberg (hazardMan)
     tlmullis
     trav
     tri4ng1e
     Thoronador
-    Tobias Tribble (zackhasacat)
     Tom Lowe (Vulpen)
     Tom Mason (wheybags)
     Torben Leif Carrington (TorbenC)
@@ -283,6 +286,7 @@ Packagers
     Kenny Armstrong (artorius) - Fedora Linux
     Nikolay Kasyanov (corristo) - Mac OS X
     Sandy Carter (bwrsandman) - Arch Linux
+    Sarah Sunday (ssunday) - MacOS
 
 Public Relations and Translations
 ---------------------------------
@@ -290,6 +294,8 @@ Public Relations and Translations
     Artem Kotsynyak (greye) - Russian News Writer
     Dawid Lakomy (Vedyimyn) - Polish News Writer
     ElderTroll - Release Manager
+    Georgi Georgiev (RacerBG) - Bulgarian Translation
+    Igor Wiśniewski (Igilq) - Polish Translation
     Jim Clauwaert (Zedd) - Public Outreach
     juanmnzsk8 - Spanish News Writer
     Julien Voisin (jvoisin/ap0) - French News Writer

@@ -1,23 +1,23 @@
 #include "movieaudiofactory.hpp"
 
-#include <extern/osg-ffmpeg-videoplayer/audiodecoder.hpp>
-#include <extern/osg-ffmpeg-videoplayer/libavutildefines.hpp>
-#include <extern/osg-ffmpeg-videoplayer/videostate.hpp>
+#include <osg-ffmpeg-videoplayer/audiodecoder.hpp>
+#include <osg-ffmpeg-videoplayer/libavutildefines.hpp>
+#include <osg-ffmpeg-videoplayer/videostate.hpp>
 
 #include "../mwbase/environment.hpp"
 #include "../mwbase/soundmanager.hpp"
 
-#include "sound_decoder.hpp"
+#include "sounddecoder.hpp"
 
 namespace MWSound
 {
 
     class MovieAudioDecoder;
-    class MWSoundDecoderBridge final : public Sound_Decoder
+    class MWSoundDecoderBridge final : public SoundDecoder
     {
     public:
         MWSoundDecoderBridge(MWSound::MovieAudioDecoder* decoder)
-            : Sound_Decoder(nullptr)
+            : SoundDecoder(nullptr)
             , mDecoder(decoder)
         {
         }
@@ -48,12 +48,13 @@ namespace MWSound
         size_t getSampleOffset()
         {
 #if OPENMW_FFMPEG_5_OR_GREATER
-            ssize_t clock_delay = (mFrameSize - mFramePos) / mOutputChannelLayout.nb_channels
+            const ssize_t clockDelay = (mFrameSize - mFramePos) / mOutputChannelLayout.nb_channels
 #else
-            ssize_t clock_delay = (mFrameSize - mFramePos) / av_get_channel_layout_nb_channels(mOutputChannelLayout)
+            const ssize_t clockDelay = (mFrameSize - mFramePos)
+                / av_get_channel_layout_nb_channels(mOutputChannelLayout)
 #endif
                 / av_get_bytes_per_sample(mOutputSampleFormat);
-            return (size_t)(mAudioClock * mAudioContext->sample_rate) - clock_delay;
+            return static_cast<size_t>(static_cast<ssize_t>(mAudioClock * mAudioContext->sample_rate) - clockDelay);
         }
 
         std::string getStreamName()

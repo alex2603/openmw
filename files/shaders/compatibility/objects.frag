@@ -89,6 +89,7 @@ varying vec4 passTangent;
 #define ADDITIVE_BLENDING
 #endif
 
+#include "lib/core/fragment.h.glsl"
 #include "lib/light/lighting.glsl"
 #include "lib/material/parallax.glsl"
 #include "lib/material/alpha.glsl"
@@ -113,8 +114,6 @@ uniform sampler2D orthoDepthMap;
 varying vec3 orthoDepthMapCoord;
 #endif
 
-uniform sampler2D opaqueDepthTex;
-
 void main()
 {
 #if @particleOcclusion
@@ -127,13 +126,10 @@ void main()
 #if @parallax || @diffuseParallax
 #if @parallax
     float height = texture2D(normalMap, normalMapUV).a;
-    float flipY = (passTangent.w > 0.0) ? -1.f : 1.f;
 #else
     float height = texture2D(diffuseMap, diffuseMapUV).a;
-    // FIXME: shouldn't be necessary, but in this path false-positives are common
-    float flipY = -1.f;
 #endif
-    offset = getParallaxOffset(transpose(normalToViewMatrix) * normalize(-passViewPos), height, flipY);
+    offset = getParallaxOffset(transpose(normalToViewMatrix) * normalize(-passViewPos), height);
 #endif
 
 vec2 screenCoords = gl_FragCoord.xy / screenRes;
@@ -143,7 +139,7 @@ vec2 screenCoords = gl_FragCoord.xy / screenRes;
 
 #if defined(DISTORTION) && DISTORTION
     gl_FragData[0].a *= getDiffuseColor().a;
-    gl_FragData[0] = applyDistortion(gl_FragData[0], distortionStrength, gl_FragCoord.z, texture2D(opaqueDepthTex, screenCoords / @distorionRTRatio).x);
+    gl_FragData[0] = applyDistortion(gl_FragData[0], distortionStrength, gl_FragCoord.z, sampleOpaqueDepthTex(screenCoords / @distorionRTRatio).x);
     return;
 #endif
 
@@ -258,7 +254,7 @@ vec2 screenCoords = gl_FragCoord.xy / screenRes;
         viewNormal,
         near,
         far,
-        texture2D(opaqueDepthTex, screenCoords).x,
+        sampleOpaqueDepthTex(screenCoords).x,
         particleSize,
         particleFade,
         softFalloffDepth

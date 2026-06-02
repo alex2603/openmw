@@ -136,6 +136,7 @@ CSMWorld::Data::Data(ToUTF8::FromType encoding, const Files::PathContainer& data
     const std::vector<std::string>& archives, const std::filesystem::path& resDir)
     : mEncoder(encoding)
     , mPathgrids(mCells)
+    , mReferenceables(mMagicEffects)
     , mRefs(mCells)
     , mDialogue(nullptr)
     , mReaderIndex(0)
@@ -143,7 +144,7 @@ CSMWorld::Data::Data(ToUTF8::FromType encoding, const Files::PathContainer& data
     , mArchives(archives)
     , mVFS(std::make_unique<VFS::Manager>())
 {
-    VFS::registerArchives(mVFS.get(), Files::Collections(mDataPaths), mArchives, true);
+    VFS::registerArchives(mVFS.get(), Files::Collections(mDataPaths), mArchives, true, &mEncoder.getStatelessEncoder());
 
     mResourcesManager.setVFS(mVFS.get());
 
@@ -151,17 +152,16 @@ CSMWorld::Data::Data(ToUTF8::FromType encoding, const Files::PathContainer& data
     mResourceSystem
         = std::make_unique<Resource::ResourceSystem>(mVFS.get(), expiryDelay, &mEncoder.getStatelessEncoder());
 
-    Shader::ShaderManager::DefineMap defines
-        = mResourceSystem->getSceneManager()->getShaderManager().getGlobalDefines();
-    Shader::ShaderManager::DefineMap shadowDefines = SceneUtil::ShadowManager::getShadowsDisabledDefines();
-    defines["forcePPL"] = "0"; // Don't force per-pixel lighting
-    defines["clamp"] = "1"; // Clamp lighting
-    defines["preLightEnv"] = "0"; // Apply environment maps after lighting like Morrowind
-    defines["radialFog"] = "0";
-    defines["lightingModel"] = "0";
-    defines["reverseZ"] = "0";
-    defines["waterRefraction"] = "0";
+    auto defines = Shader::getDefaultDefines();
+
+    auto shadowDefines = SceneUtil::ShadowManager::getShadowsDisabledDefines();
+
+    osg::ref_ptr<SceneUtil::LightManager> lightManager = new SceneUtil::LightManager(SceneUtil::LightSettings{});
+    auto lightDefines = lightManager->getLightDefines();
+
     for (const auto& define : shadowDefines)
+        defines[define.first] = define.second;
+    for (const auto& define : lightDefines)
         defines[define.first] = define.second;
     mResourceSystem->getSceneManager()->getShaderManager().setGlobalDefines(defines);
 
@@ -340,7 +340,7 @@ CSMWorld::Data::Data(ToUTF8::FromType encoding, const Files::PathContainer& data
     // Spell effects
     mSpells.addColumn(new NestedParentColumn<ESM::Spell>(Columns::ColumnId_EffectList));
     index = mSpells.getColumns() - 1;
-    mSpells.addAdapter(std::make_pair(&mSpells.getColumn(index), new EffectsListAdapter<ESM::Spell>()));
+    mSpells.addAdapter(std::make_pair(&mSpells.getColumn(index), new EffectsListAdapter<ESM::Spell>(mMagicEffects)));
     mSpells.getNestableColumn(index)->addColumn(
         new NestedChildColumn(Columns::ColumnId_EffectId, ColumnBase::Display_EffectId));
     mSpells.getNestableColumn(index)->addColumn(
@@ -456,7 +456,7 @@ CSMWorld::Data::Data(ToUTF8::FromType encoding, const Files::PathContainer& data
     mEnchantments.addColumn(new NestedParentColumn<ESM::Enchantment>(Columns::ColumnId_EffectList));
     index = mEnchantments.getColumns() - 1;
     mEnchantments.addAdapter(
-        std::make_pair(&mEnchantments.getColumn(index), new EffectsListAdapter<ESM::Enchantment>()));
+        std::make_pair(&mEnchantments.getColumn(index), new EffectsListAdapter<ESM::Enchantment>(mMagicEffects)));
     mEnchantments.getNestableColumn(index)->addColumn(
         new NestedChildColumn(Columns::ColumnId_EffectId, ColumnBase::Display_EffectId));
     mEnchantments.getNestableColumn(index)->addColumn(
@@ -1465,7 +1465,7 @@ std::vector<ESM::RefId> CSMWorld::Data::getIds(bool listDeleted) const
 void CSMWorld::Data::assetsChanged()
 {
     mVFS.get()->reset();
-    VFS::registerArchives(mVFS.get(), Files::Collections(mDataPaths), mArchives, true);
+    VFS::registerArchives(mVFS.get(), Files::Collections(mDataPaths), mArchives, true, &mEncoder.getStatelessEncoder());
 
     const UniversalId assetTableIds[] = { UniversalId::Type_Meshes, UniversalId::Type_Icons, UniversalId::Type_Musics,
         UniversalId::Type_SoundsRes, UniversalId::Type_Textures, UniversalId::Type_Videos };

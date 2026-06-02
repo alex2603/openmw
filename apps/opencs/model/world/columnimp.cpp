@@ -25,18 +25,7 @@ namespace CSMWorld
 
             std::string operator()(ESM::FormId value) const { return value.toString("FormId:"); }
 
-            std::string operator()(ESM::IndexRefId value) const
-            {
-                switch (value.getRecordType())
-                {
-                    case ESM::REC_MGEF:
-                        return std::string(ESM::MagicEffect::sIndexNames[value.getValue()]);
-                    default:
-                        break;
-                }
-
-                return value.toDebugString();
-            }
+            std::string operator()(ESM::IndexRefId value) const { return value.toDebugString(); }
 
             template <class T>
             std::string operator()(const T& value) const
@@ -86,14 +75,14 @@ namespace CSMWorld
 
     QVariant LandNormalsColumn::get(const Record<Land>& record) const
     {
-        const int Size = Land::LAND_NUM_VERTS * 3;
+        const int size = Land::LAND_NUM_VERTS * 3;
         const Land& land = record.get();
 
-        DataType values(Size, 0);
+        DataType values(size, 0);
 
         if (land.isDataLoaded(Land::DATA_VNML))
         {
-            for (int i = 0; i < Size; ++i)
+            for (int i = 0; i < size; ++i)
                 values[i] = land.getLandData()->mNormals[i];
         }
 
@@ -133,14 +122,14 @@ namespace CSMWorld
 
     QVariant LandHeightsColumn::get(const Record<Land>& record) const
     {
-        const int Size = Land::LAND_NUM_VERTS;
+        const int size = Land::LAND_NUM_VERTS;
         const Land& land = record.get();
 
-        DataType values(Size, 0);
+        DataType values(size, 0);
 
         if (land.isDataLoaded(Land::DATA_VHGT))
         {
-            for (int i = 0; i < Size; ++i)
+            for (int i = 0; i < size; ++i)
                 values[i] = land.getLandData()->mHeights[i];
         }
 
@@ -182,14 +171,17 @@ namespace CSMWorld
 
     QVariant LandColoursColumn::get(const Record<Land>& record) const
     {
-        const int Size = Land::LAND_NUM_VERTS * 3;
+        const int size = Land::LAND_NUM_VERTS * 3;
         const Land& land = record.get();
 
-        DataType values(Size, 0);
+        // Missing VCLR should behave like default vertex colour (white),
+        // not black. This avoids newly created/undefined edge land turning dark
+        // when a single vertex edit writes the whole array back.
+        DataType values(size, 255);
 
         if (land.isDataLoaded(Land::DATA_VCLR))
         {
-            for (int i = 0; i < Size; ++i)
+            for (int i = 0; i < size; ++i)
                 values[i] = land.getLandData()->mColours[i];
         }
 
@@ -231,14 +223,14 @@ namespace CSMWorld
 
     QVariant LandTexturesColumn::get(const Record<Land>& record) const
     {
-        const int Size = Land::LAND_NUM_TEXTURES;
+        const int size = Land::LAND_NUM_TEXTURES;
         const Land& land = record.get();
 
-        DataType values(Size, 0);
+        DataType values(size, 0);
 
         if (land.isDataLoaded(Land::DATA_VTEX))
         {
-            for (int i = 0; i < Size; ++i)
+            for (int i = 0; i < size; ++i)
                 values[i] = land.getLandData()->mTextures[i];
         }
 

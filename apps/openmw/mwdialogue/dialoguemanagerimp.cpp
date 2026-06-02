@@ -12,6 +12,7 @@
 #include <components/esm3/loaddial.hpp>
 #include <components/esm3/loadfact.hpp>
 #include <components/esm3/loadinfo.hpp>
+#include <components/esm3/loadmgef.hpp>
 
 #include <components/compiler/errorhandler.hpp>
 #include <components/compiler/exception.hpp>
@@ -29,6 +30,7 @@
 
 #include "../mwbase/environment.hpp"
 #include "../mwbase/journal.hpp"
+#include "../mwbase/luamanager.hpp"
 #include "../mwbase/mechanicsmanager.hpp"
 #include "../mwbase/scriptmanager.hpp"
 #include "../mwbase/soundmanager.hpp"
@@ -48,7 +50,7 @@
 #include "../mwmechanics/npcstats.hpp"
 
 #include "filter.hpp"
-#include "hypertextparser.hpp"
+#include "keywordsearch.hpp"
 
 namespace MWDialogue
 {
@@ -75,6 +77,8 @@ namespace MWDialogue
         mOriginalDisposition = 0;
         mCurrentDisposition = 0;
         mPermanentDispositionChange = 0;
+        mKeywordSearch.clear();
+        mKeywordSearchInitialized = false;
     }
 
     void DialogueManager::addTopic(const ESM::RefId& topic)
@@ -82,28 +86,30 @@ namespace MWDialogue
         mKnownTopics.insert(topic);
     }
 
-    std::vector<ESM::RefId> DialogueManager::parseTopicIdsFromText(const std::string& text)
+    const MWDialogue::KeywordSearch& DialogueManager::getKeywordSearch() const
+    {
+        const auto& dialogue = MWBase::Environment::get().getESMStore()->get<ESM::Dialogue>();
+        if (dialogue.getKeywordSearchModFlag() || !mKeywordSearchInitialized)
+        {
+            mKeywordSearch.clear();
+
+            for (const ESM::Dialogue& topic : dialogue)
+                mKeywordSearch.seed(mTranslationDataStorage.topicKeyword(topic.mStringId), topic.mStringId);
+
+            mKeywordSearchInitialized = true;
+        }
+
+        return mKeywordSearch;
+    }
+
+    std::vector<ESM::RefId> DialogueManager::parseTopicIdsFromText(const std::string& text) const
     {
         std::vector<ESM::RefId> topicIdList;
 
-        std::vector<HyperTextParser::Token> hypertext = HyperTextParser::parseHyperText(text);
+        std::vector<KeywordSearch::Match> matches = getKeywordSearch().parseHyperText(text, mTranslationDataStorage);
 
-        for (std::vector<HyperTextParser::Token>::iterator tok = hypertext.begin(); tok != hypertext.end(); ++tok)
-        {
-            std::string topicId = Misc::StringUtils::lowerCase(tok->mText);
-
-            if (tok->isExplicitLink())
-            {
-                // calculation of standard form for all hyperlinks
-                size_t asterisk_count = HyperTextParser::removePseudoAsterisks(topicId);
-                for (; asterisk_count > 0; --asterisk_count)
-                    topicId.append("*");
-
-                topicId = mTranslationDataStorage.topicStandardForm(topicId);
-            }
-
-            topicIdList.push_back(ESM::RefId::stringRefId(topicId));
-        }
+        for (const auto& match : matches)
+            topicIdList.push_back(ESM::RefId::stringRefId(match.mTopicId));
 
         return topicIdList;
     }
@@ -177,6 +183,7 @@ namespace MWDialogue
 
                     MWScript::InterpreterContext interpreterContext(&mActor.getRefData().getLocals(), mActor);
                     callback->addResponse({}, Interpreter::fixDefinesDialog(info->mResponse, interpreterContext));
+                    MWBase::Environment::get().getLuaManager()->onDialogueResponse(mActor, *info, dialogue);
                     executeScript(info->mResultScript, mActor);
                     mLastTopic = dialogue.mId;
 
@@ -263,24 +270,13 @@ namespace MWDialogue
 
     bool DialogueManager::inJournal(const ESM::RefId& topicId, const ESM::RefId& infoId) const
     {
-        const MWDialogue::Topic* topicHistory = nullptr;
         MWBase::Journal* journal = MWBase::Environment::get().getJournal();
-        for (auto it = journal->topicBegin(); it != journal->topicEnd(); ++it)
+        const auto topic = journal->getTopics().find(topicId);
+        if (topic != journal->getTopics().end())
         {
-            if (it->first == topicId)
-            {
-                topicHistory = &it->second;
-                break;
-            }
-        }
-
-        if (!topicHistory)
-            return false;
-
-        for (const auto& topic : *topicHistory)
-        {
-            if (topic.mInfoId == infoId)
-                return true;
+            return std::ranges::find_if(topic->second, [&](const MWDialogue::Entry& entry) {
+                return entry.mInfoId == infoId;
+            }) != topic->second.end();
         }
         return false;
     }
@@ -317,6 +313,7 @@ namespace MWDialogue
 
             MWScript::InterpreterContext interpreterContext(&mActor.getRefData().getLocals(), mActor);
             callback->addResponse(title, Interpreter::fixDefinesDialog(info->mResponse, interpreterContext));
+            MWBase::Environment::get().getLuaManager()->onDialogueResponse(mActor, *info, dialogue);
 
             if (dialogue.mType == ESM::Dialogue::Topic)
             {
@@ -448,12 +445,15 @@ namespace MWDialogue
         {
             updateOriginalDisposition();
             MWMechanics::NpcStats& npcStats = mActor.getClass().getNpcStats(mActor);
-            // Clamp permanent disposition change so that final disposition doesn't go below 0 (could happen with
-            // intimidate)
-            npcStats.setBaseDisposition(0);
-            int zero = MWBase::Environment::get().getMechanicsManager()->getDerivedDisposition(mActor, false);
-            int disposition = std::clamp(mOriginalDisposition + mPermanentDispositionChange, -zero, 100 - zero);
 
+            // Get the sum of disposition effects minus charm (shouldn't be made permanent)
+            npcStats.setBaseDisposition(0);
+            int zero = static_cast<int>(
+                MWBase::Environment::get().getMechanicsManager()->getDerivedDisposition(mActor, false)
+                - npcStats.getMagicEffects().getOrDefault(ESM::MagicEffect::Charm).getMagnitude());
+
+            // Clamp new permanent disposition to avoid negative derived disposition (can be caused by intimidate)
+            int disposition = std::clamp(mOriginalDisposition + mPermanentDispositionChange, -zero, 100 - zero);
             npcStats.setBaseDisposition(disposition);
         }
         mPermanentDispositionChange = 0;
@@ -484,6 +484,7 @@ namespace MWDialogue
 
                     MWScript::InterpreterContext interpreterContext(&mActor.getRefData().getLocals(), mActor);
                     callback->addResponse({}, Interpreter::fixDefinesDialog(text, interpreterContext));
+                    MWBase::Environment::get().getLuaManager()->onDialogueResponse(mActor, *info, *dialogue);
 
                     if (dialogue->mType == ESM::Dialogue::Topic)
                     {
@@ -613,6 +614,7 @@ namespace MWDialogue
 
             callback->addResponse(gmsts.find("sServiceRefusal")->mValue.getString(),
                 Interpreter::fixDefinesDialog(info->mResponse, interpreterContext));
+            MWBase::Environment::get().getLuaManager()->onDialogueResponse(mActor, *info, dialogue);
 
             executeScript(info->mResultScript, mActor);
             return true;
@@ -656,11 +658,12 @@ namespace MWDialogue
                 sndMgr->say(actor, Misc::ResourceHelpers::correctSoundPath(VFS::Path::Normalized(info->mSound)));
             if (!info->mResultScript.empty())
                 executeScript(info->mResultScript, actor);
+            MWBase::Environment::get().getLuaManager()->onDialogueResponse(actor, *info, *dial);
         }
         return info != nullptr;
     }
 
-    int DialogueManager::countSavedGameRecords() const
+    size_t DialogueManager::countSavedGameRecords() const
     {
         return 1; // known topics
     }

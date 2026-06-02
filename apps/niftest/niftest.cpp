@@ -113,7 +113,7 @@ bool isBSA(const std::filesystem::path& path)
 std::unique_ptr<VFS::Archive> makeArchive(const std::filesystem::path& path)
 {
     if (isBSA(path))
-        return VFS::makeBsaArchive(path);
+        return VFS::makeBsaArchive(path, nullptr);
     if (std::filesystem::is_directory(path))
         return std::make_unique<VFS::FileSystemArchive>(path);
     return nullptr;
@@ -144,7 +144,7 @@ bool readFile(
                 Nif::NIFFile file(VFS::Path::Normalized(Files::pathToUnicodeString(fullPath)));
                 Nif::Reader reader(file, nullptr);
                 if (vfs != nullptr)
-                    reader.parse(vfs->get(pathStr));
+                    reader.parse(vfs->get(VFS::Path::Normalized(pathStr)));
                 else
                     reader.parse(Files::openConstrainedFileStream(fullPath));
                 break;
@@ -152,7 +152,7 @@ bool readFile(
             case FileClass::Material:
             {
                 if (vfs != nullptr)
-                    Bgsm::parse(vfs->get(pathStr));
+                    Bgsm::parse(vfs->get(VFS::Path::Normalized(pathStr)));
                 else
                     Bgsm::parse(Files::openConstrainedFileStream(fullPath));
                 break;
@@ -190,15 +190,15 @@ void readVFS(std::unique_ptr<VFS::Archive>&& archive, const std::filesystem::pat
     if (!archivePath.empty() && !isBSA(archivePath))
     {
         const Files::Collections fileCollections({ archivePath });
-        const Files::MultiDirCollection& bsaCol = fileCollections.getCollection(".bsa");
-        const Files::MultiDirCollection& ba2Col = fileCollections.getCollection(".ba2");
+        const Files::MultiDirCollection& bsaCol = fileCollections.getCollection("bsa");
+        const Files::MultiDirCollection& ba2Col = fileCollections.getCollection("ba2");
         for (const Files::MultiDirCollection& collection : { bsaCol, ba2Col })
         {
             for (auto& file : collection)
             {
                 try
                 {
-                    readVFS(VFS::makeBsaArchive(file.second), file.second, quiet);
+                    readVFS(VFS::makeBsaArchive(file.second, nullptr), file.second, quiet);
                 }
                 catch (const std::exception& e)
                 {
@@ -235,8 +235,8 @@ Allowed options)");
     bpo::variables_map variables;
     try
     {
-        bpo::parsed_options valid_opts = bpo::command_line_parser(argc, argv).options(desc).positional(p).run();
-        bpo::store(valid_opts, variables);
+        bpo::parsed_options validOpts = bpo::command_line_parser(argc, argv).options(desc).positional(p).run();
+        bpo::store(validOpts, variables);
         bpo::notify(variables);
         if (variables.count("help"))
         {

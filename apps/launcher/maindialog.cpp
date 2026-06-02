@@ -121,7 +121,7 @@ void Launcher::MainDialog::createPages()
     mDataFilesPage = new DataFilesPage(mCfgMgr, mGameSettings, mLauncherSettings, this);
     mGraphicsPage = new GraphicsPage(this);
     mImportPage = new ImportPage(mCfgMgr, mGameSettings, mLauncherSettings, this);
-    mSettingsPage = new SettingsPage(mGameSettings, this);
+    mSettingsPage = new SettingsPage(mCfgMgr, mGameSettings, this);
 
     // Add the pages to the stacked widget
     pagesWidget->addWidget(mDataFilesPage);
@@ -497,11 +497,7 @@ bool Launcher::MainDialog::writeSettings()
     }
 
     // Game settings
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     QFile file(userPath / Files::openmwCfgFile);
-#else
-    QFile file(Files::getUserConfigPathQString(mCfgMgr));
-#endif
 
     if (!file.open(QIODevice::ReadWrite | QIODevice::Text))
     {
@@ -604,5 +600,5 @@ void Launcher::MainDialog::play()
 
 void Launcher::MainDialog::help()
 {
-    Misc::HelpViewer::openHelp("reference/index.html");
+    Misc::HelpViewer::openHelp({});
 }

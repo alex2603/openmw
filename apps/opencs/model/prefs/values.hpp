@@ -81,6 +81,11 @@ namespace CSMPrefs
                 "Grow then Scroll", "The view window grows. The scrollbar appears once it cannot grow any further." },
         };
 
+        static constexpr std::array<EnumValueView, 2> sSubviewOpenDirectionValues{
+            EnumValueView{ "Open Right", "New subviews open to the right of existing ones." },
+            EnumValueView{ "Open Left", "New subviews open to the left of existing ones." },
+        };
+
         Settings::SettingValue<int> mDefaultWidth{ mIndex, sName, "default-width", 800 };
         Settings::SettingValue<int> mDefaultHeight{ mIndex, sName, "default-height", 600 };
         Settings::SettingValue<bool> mShowStatusbar{ mIndex, sName, "show-statusbar", true };
@@ -90,6 +95,8 @@ namespace CSMPrefs
         Settings::SettingValue<int> mMinimumWidth{ mIndex, sName, "minimum-width", 325 };
         EnumSettingValue mMainwindowScrollbar{ mIndex, sName, "mainwindow-scrollbar", sMainwindowScrollbarValues, 0 };
         Settings::SettingValue<bool> mGrowLimit{ mIndex, sName, "grow-limit", false };
+        EnumSettingValue mSubviewOpenDirection{ mIndex, sName, "subview-open-direction", sSubviewOpenDirectionValues,
+            0 };
     };
 
     struct RecordsCategory : Settings::WithIndex
@@ -258,7 +265,7 @@ namespace CSMPrefs
         Settings::SettingValue<int> mCameraFov{ mIndex, sName, "camera-fov", 90 };
         Settings::SettingValue<bool> mCameraOrtho{ mIndex, sName, "camera-ortho", false };
         Settings::SettingValue<int> mCameraOrthoSize{ mIndex, sName, "camera-ortho-size", 100 };
-        Settings::SettingValue<double> mObjectMarkerAlpha{ mIndex, sName, "object-marker-alpha", 0.5 };
+        Settings::SettingValue<double> mObjectMarkerScale{ mIndex, sName, "object-marker-scale", 5.0 };
         Settings::SettingValue<bool> mSceneUseGradient{ mIndex, sName, "scene-use-gradient", true };
         Settings::SettingValue<std::string> mSceneDayBackgroundColour{ mIndex, sName, "scene-day-background-colour",
             "#6e7880" };
@@ -491,7 +498,7 @@ namespace CSMPrefs
         Settings::SettingValue<std::string> mSceneScaleSubmode{ mIndex, sName, "scene-submode-scale", "V" };
         Settings::SettingValue<std::string> mSceneRotateSubmode{ mIndex, sName, "scene-submode-rotate", "R" };
         Settings::SettingValue<std::string> mSceneCameraCycle{ mIndex, sName, "scene-cam-cycle", "Tab" };
-        Settings::SettingValue<std::string> mSceneToggleMarkers{ mIndex, sName, "scene-toggle-markers", "F4" };
+        Settings::SettingValue<std::string> mSceneToggleMarker{ mIndex, sName, "scene-toggle-marker", "F4" };
         Settings::SettingValue<std::string> mFreeForward{ mIndex, sName, "free-forward", "W" };
         Settings::SettingValue<std::string> mFreeBackward{ mIndex, sName, "free-backward", "S" };
         Settings::SettingValue<std::string> mFreeLeft{ mIndex, sName, "free-left", "A" };
@@ -507,8 +514,10 @@ namespace CSMPrefs
         Settings::SettingValue<std::string> mOrbitRollRight{ mIndex, sName, "orbit-roll-right", "E" };
         Settings::SettingValue<std::string> mOrbitSpeedMode{ mIndex, sName, "orbit-speed-mode", "" };
         Settings::SettingValue<std::string> mOrbitCenterSelection{ mIndex, sName, "orbit-center-selection", "C" };
-        Settings::SettingValue<std::string> mScriptEditorComment{ mIndex, sName, "script-editor-comment", "" };
-        Settings::SettingValue<std::string> mScriptEditorUncomment{ mIndex, sName, "script-editor-uncomment", "" };
+        Settings::SettingValue<std::string> mScriptEditorComment{ mIndex, sName, "script-editor-comment",
+            "Ctrl+Slash" };
+        Settings::SettingValue<std::string> mScriptEditorUncomment{ mIndex, sName, "script-editor-uncomment",
+            "Ctrl+Shift+Question" };
     };
 
     struct ModelsCategory : Settings::WithIndex

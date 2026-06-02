@@ -22,6 +22,7 @@
 #include <components/resource/scenemanager.hpp>
 #include <components/sceneutil/positionattitudetransform.hpp>
 #include <components/settings/values.hpp>
+#include <components/terrain/terraingrid.hpp>
 #include <components/vfs/pathutil.hpp>
 
 #include "../mwbase/environment.hpp"
@@ -177,13 +178,13 @@ namespace
                 const btTransform closedDoorTransform(
                     Misc::Convert::makeBulletQuaternion(ptr.getCellRef().getPosition()), transform.getOrigin());
 
-                const auto start = Misc::Convert::toOsg(closedDoorTransform(center + toPoint));
+                const auto start = Misc::Convert::makeOsgVec3f(closedDoorTransform(center + toPoint));
                 const auto startPoint = physics.castRay(start, start - osg::Vec3f(0, 0, 1000), { ptr }, {},
                     MWPhysics::CollisionType_World | MWPhysics::CollisionType_HeightMap
                         | MWPhysics::CollisionType_Water);
                 const auto connectionStart = startPoint.mHit ? startPoint.mHitPos : start;
 
-                const auto end = Misc::Convert::toOsg(closedDoorTransform(center - toPoint));
+                const auto end = Misc::Convert::makeOsgVec3f(closedDoorTransform(center - toPoint));
                 const auto endPoint = physics.castRay(end, end - osg::Vec3f(0, 0, 1000), { ptr }, {},
                     MWPhysics::CollisionType_World | MWPhysics::CollisionType_HeightMap
                         | MWPhysics::CollisionType_Water);
@@ -367,7 +368,7 @@ namespace MWWorld
 
         ListAndResetObjectsVisitor visitor;
 
-        cell->forEach(visitor);
+        cell->forEach(visitor, true); // Include objects being teleported by Lua
         for (const auto& ptr : visitor.mObjects)
         {
             if (const auto object = mPhysics->getObject(ptr))
@@ -375,7 +376,6 @@ namespace MWWorld
                 if (object->getShapeInstance()->mVisualCollisionType == Resource::VisualCollisionType::None)
                     mNavigator.removeObject(DetourNavigator::ObjectId(object), navigatorUpdateGuard);
                 mPhysics->remove(ptr);
-                ptr.mRef->mData.mPhysicsPostponed = false;
             }
             else if (mPhysics->getActor(ptr))
             {
@@ -383,6 +383,8 @@ namespace MWWorld
                 mRendering.removeActorPath(ptr);
                 mPhysics->remove(ptr);
             }
+            else
+                ptr.mRef->mData.mPhysicsPostponed = false;
             MWBase::Environment::get().getLuaManager()->objectRemovedFromScene(ptr);
         }
 
@@ -399,11 +401,11 @@ namespace MWWorld
             mNavigator.removeWater(osg::Vec2i(cellX, cellY), navigatorUpdateGuard);
 
         ESM::visit(ESM::VisitOverload{
-                       [&](const ESM::Cell& cell) {
-                           if (const auto pathgrid = mWorld.getStore().get<ESM::Pathgrid>().search(cell))
+                       [&](const ESM::Cell& c) {
+                           if (const auto pathgrid = mWorld.getStore().get<ESM::Pathgrid>().search(c))
                                mNavigator.removePathgrid(*pathgrid);
                        },
-                       [&](const ESM4::Cell& cell) {},
+                       [&](const ESM4::Cell& /*c*/) {},
                    },
             *cell->getCell());
 
@@ -455,11 +457,9 @@ namespace MWWorld
                 mPhysics->addHeightField(defaultHeight.data(), cellX, cellY, worldsize, verts,
                     ESM::Land::DEFAULT_HEIGHT, ESM::Land::DEFAULT_HEIGHT, land.get());
             }
-            if (const auto heightField = mPhysics->getHeightField(cellX, cellY))
+            if (mPhysics->getHeightField(cellX, cellY))
             {
                 const osg::Vec2i cellPosition(cellX, cellY);
-                const btVector3& origin = heightField->getCollisionObject()->getWorldTransform().getOrigin();
-                const osg::Vec3f shift(origin.x(), origin.y(), origin.z());
                 const HeightfieldShape shape = [&]() -> HeightfieldShape {
                     if (data == nullptr)
                     {
@@ -480,11 +480,11 @@ namespace MWWorld
         }
 
         ESM::visit(ESM::VisitOverload{
-                       [&](const ESM::Cell& cell) {
-                           if (const auto pathgrid = mWorld.getStore().get<ESM::Pathgrid>().search(cell))
-                               mNavigator.addPathgrid(cell, *pathgrid);
+                       [&](const ESM::Cell& c) {
+                           if (const auto pathgrid = mWorld.getStore().get<ESM::Pathgrid>().search(c))
+                               mNavigator.addPathgrid(c, *pathgrid);
                        },
-                       [&](const ESM4::Cell& cell) {},
+                       [&](const ESM4::Cell& /*c*/) {},
                    },
             *cell.getCell());
 
@@ -510,7 +510,7 @@ namespace MWWorld
 
             if (cellVariant.isExterior())
             {
-                if (const auto heightField = mPhysics->getHeightField(cellX, cellY))
+                if (mPhysics->getHeightField(cellX, cellY))
                     mNavigator.addWater(
                         osg::Vec2i(cellX, cellY), ESM::Land::REAL_SIZE, waterLevel, navigatorUpdateGuard);
             }
@@ -560,7 +560,7 @@ namespace MWWorld
             const osg::Vec2f center = ESM::indexToPosition(
                 ESM::ExteriorCellLocation(currentGridCenter->x(), currentGridCenter->y(), worldspace), true);
             float distance = std::max(std::abs(center.x() - pos.x()), std::abs(center.y() - pos.y()));
-            float cellSize = ESM::getCellSize(worldspace);
+            int cellSize = ESM::getCellSize(worldspace);
             const float maxDistance = cellSize / 2 + mCellLoadingThreshold; // 1/2 cell size + threshold
             if (distance <= maxDistance)
                 return *currentGridCenter;
@@ -644,8 +644,11 @@ namespace MWWorld
         mHalfGridSize = halfGridSize;
         mCurrentGridCenter = osg::Vec2i(playerCellX, playerCellY);
         osg::Vec4i newGrid = gridCenterToBounds(mCurrentGridCenter);
-        mRendering.setActiveGrid(newGrid);
+
+        // NOTE: setActiveGrid must be after enableTerrain, otherwise we set the grid in the old exterior worldspace
         mRendering.enableTerrain(true, playerCellIndex.mWorldspace);
+        mRendering.setActiveGrid(newGrid);
+
         mPreloader->setTerrain(mRendering.getTerrain());
         if (mRendering.pagingUnlockCache())
             mPreloader->abortTerrainPreloadExcept(nullptr);
@@ -1080,17 +1083,6 @@ namespace MWWorld
         return mActiveCells.contains(&cell);
     }
 
-    Ptr Scene::searchPtrViaActorId(int actorId)
-    {
-        for (CellStoreCollection::const_iterator iter(mActiveCells.begin()); iter != mActiveCells.end(); ++iter)
-        {
-            Ptr ptr = (*iter)->searchViaActorId(actorId);
-            if (!ptr.isEmpty())
-                return ptr;
-        }
-        return Ptr();
-    }
-
     class PreloadMeshItem : public SceneUtil::WorkItem
     {
     public:
@@ -1221,7 +1213,7 @@ namespace MWWorld
         cellY = mCurrentGridCenter.y();
         ESM::RefId extWorldspace = mWorld.getCurrentWorldspace();
 
-        float cellSize = ESM::getCellSize(extWorldspace);
+        int cellSize = ESM::getCellSize(extWorldspace);
 
         for (int dx = -halfGridSizePlusOne; dx <= halfGridSizePlusOne; ++dx)
         {
@@ -1268,13 +1260,12 @@ namespace MWWorld
         const std::size_t leftCapacity = mPreloader->getMaxCacheSize() - mPreloader->getCacheSize();
         if (cells.size() > leftCapacity)
         {
-            static bool logged = [&] {
+            [[maybe_unused]] static const bool logged = [&] {
                 Log(Debug::Warning) << "Not enough cell preloader cache capacity to preload exterior cells, consider "
                                        "increasing \"preload cell cache max\" up to "
                                     << (mPreloader->getCacheSize() + cells.size());
                 return true;
             }();
-            (void)logged;
             cells.resize(leftCapacity);
         }
 
@@ -1291,6 +1282,9 @@ namespace MWWorld
 
     void Scene::preloadTerrain(const osg::Vec3f& pos, ESM::RefId worldspace, bool sync)
     {
+        if (mRendering.getTerrain()->getWorldspace() != worldspace)
+            throw std::runtime_error("preloadTerrain can only work with the current exterior worldspace");
+
         ESM::ExteriorCellLocation cellPos = ESM::positionToExteriorCellLocation(pos.x(), pos.y(), worldspace);
         const PositionCellGrid position{ pos, gridCenterToBounds({ cellPos.mX, cellPos.mY }) };
         mPreloader->abortTerrainPreloadExcept(&position);

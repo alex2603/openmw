@@ -42,6 +42,7 @@
 #include "actorutil.hpp"
 #include "postprocessor.hpp"
 #include "renderbin.hpp"
+#include "renderingmanager.hpp"
 #include "rotatecontroller.hpp"
 #include "vismask.hpp"
 
@@ -322,7 +323,6 @@ namespace MWRender
 
             mStateSet = new osg::StateSet;
             mStateSet->setAttributeAndModes(new osg::ColorMask(false, false, false, false), osg::StateAttribute::ON);
-            mStateSet->setMode(GL_LIGHTING, osg::StateAttribute::OFF | osg::StateAttribute::OVERRIDE);
         }
 
         void drawImplementation(
@@ -366,8 +366,9 @@ namespace MWRender
     class OverrideFieldOfViewCallback : public osg::NodeCallback
     {
     public:
-        OverrideFieldOfViewCallback(float fov)
+        OverrideFieldOfViewCallback(float fov, RenderingManager* renderingManager)
             : mFov(fov)
+            , mRenderingManager(renderingManager)
         {
         }
 
@@ -380,6 +381,15 @@ namespace MWRender
                 fov = mFov;
                 osg::ref_ptr<osg::RefMatrix> newProjectionMatrix = new osg::RefMatrix();
                 newProjectionMatrix->makePerspective(fov, aspect, zNear, zFar);
+
+                osg::Vec2f offset = mRenderingManager->getProjectionOffset();
+
+                double offsetX = (offset.x() / cv->getViewport()->width()) * 2.0;
+                double offsetY = (offset.y() / cv->getViewport()->height()) * 2.0;
+
+                const osg::Matrix translation = osg::Matrix::translate(offsetX, offsetY, 0.0);
+                newProjectionMatrix->postMult(translation);
+
                 osg::ref_ptr<osg::RefMatrix> invertedOldMatrix = cv->getProjectionMatrix();
                 invertedOldMatrix = new osg::RefMatrix(osg::RefMatrix::inverse(*invertedOldMatrix));
                 osg::ref_ptr<osg::RefMatrix> viewMatrix = new osg::RefMatrix(*cv->getModelViewMatrix());
@@ -395,20 +405,19 @@ namespace MWRender
 
     private:
         float mFov;
+        RenderingManager* mRenderingManager;
     };
 
     void NpcAnimation::setRenderBin()
     {
         if (mViewMode == VM_FirstPerson)
         {
-            static bool prototypeAdded = false;
-            if (!prototypeAdded)
-            {
+            [[maybe_unused]] static const bool prototypeAdded = [&] {
                 osg::ref_ptr<osgUtil::RenderBin> depthClearBin(new osgUtil::RenderBin);
                 depthClearBin->setDrawCallback(new DepthClearCallback());
                 osgUtil::RenderBin::addRenderBinPrototype("DepthClear", depthClearBin);
-                prototypeAdded = true;
-            }
+                return true;
+            }();
             mObjectRoot->getOrCreateStateSet()->setRenderBinDetails(
                 RenderBin_FirstPerson, "DepthClear", osg::StateSet::OVERRIDE_RENDERBIN_DETAILS);
         }
@@ -526,7 +535,8 @@ namespace MWRender
         if (is1stPerson)
         {
             mObjectRoot->setNodeMask(Mask_FirstPerson);
-            mObjectRoot->addCullCallback(new OverrideFieldOfViewCallback(mFirstPersonFieldOfView));
+            mObjectRoot->addCullCallback(new OverrideFieldOfViewCallback(
+                mFirstPersonFieldOfView, MWBase::Environment::get().getWorld()->getRenderingManager()));
         }
 
         mWeaponAnimationTime->updateStartTime();
@@ -618,8 +628,8 @@ namespace MWRender
                 ESM::PartReferenceType parts[] = { ESM::PRT_Groin, ESM::PRT_Skirt, ESM::PRT_RLeg, ESM::PRT_LLeg,
                     ESM::PRT_RUpperarm, ESM::PRT_LUpperarm, ESM::PRT_RKnee, ESM::PRT_LKnee, ESM::PRT_RForearm,
                     ESM::PRT_LForearm, ESM::PRT_Cuirass };
-                size_t parts_size = sizeof(parts) / sizeof(parts[0]);
-                for (size_t p = 0; p < parts_size; ++p)
+                const size_t partsSize = sizeof(parts) / sizeof(parts[0]);
+                for (size_t p = 0; p < partsSize; ++p)
                     reserveIndividualPart(parts[p], slotlist[i].mSlot, prio);
             }
             else if (slotlist[i].mSlot == MWWorld::InventoryStore::Slot_Skirt)
@@ -1151,14 +1161,14 @@ namespace MWRender
     const std::vector<const ESM::BodyPart*>& NpcAnimation::getBodyParts(
         const ESM::RefId& race, bool female, bool firstPerson, bool werewolf)
     {
-        static const int Flag_FirstPerson = 1 << 1;
-        static const int Flag_Female = 1 << 0;
+        constexpr int flagFirstPerson = 1 << 1;
+        constexpr int flagFemale = 1 << 0;
 
         int flags = (werewolf ? -1 : 0);
         if (female)
-            flags |= Flag_Female;
+            flags |= flagFemale;
         if (firstPerson)
-            flags |= Flag_FirstPerson;
+            flags |= flagFirstPerson;
 
         RaceMapping::iterator found = sRaceMapping.find(std::make_pair(race, flags));
         if (found != sRaceMapping.end())

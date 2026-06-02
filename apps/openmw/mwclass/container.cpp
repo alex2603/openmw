@@ -192,12 +192,13 @@ namespace MWClass
         {
             if (!isTrapped)
             {
-                if (canBeHarvested(ptr))
-                {
-                    return std::make_unique<MWWorld::ActionHarvest>(ptr);
-                }
+                if (!canBeHarvested(ptr))
+                    return std::make_unique<MWWorld::ActionOpen>(ptr);
 
-                return std::make_unique<MWWorld::ActionOpen>(ptr);
+                if (hasToolTip(ptr))
+                    return std::make_unique<MWWorld::ActionHarvest>(ptr);
+
+                return std::make_unique<MWWorld::FailedAction>(std::string_view{}, ptr);
             }
             else
             {
@@ -237,7 +238,12 @@ namespace MWClass
     bool Container::hasToolTip(const MWWorld::ConstPtr& ptr) const
     {
         if (const MWWorld::CustomData* data = ptr.getRefData().getCustomData())
-            return !canBeHarvested(ptr) || data->asContainerCustomData().mStore.hasVisibleItems();
+        {
+            if (!canBeHarvested(ptr))
+                return true;
+            const MWWorld::ContainerStore& store = data->asContainerCustomData().mStore;
+            return !store.isResolved() || store.hasVisibleItems();
+        }
         return true;
     }
 

@@ -49,9 +49,9 @@ namespace MWWorld
 
         CellStore& getExterior(ESM::ExteriorCellLocation location, bool forceLoad = true) const;
 
-        CellStore* findCell(ESM::RefId Id, bool forceLoad = true) const;
+        CellStore* findCell(ESM::RefId id, bool forceLoad = true) const;
 
-        CellStore& getCell(ESM::RefId Id, bool forceLoad = true) const;
+        CellStore& getCell(ESM::RefId id, bool forceLoad = true) const;
 
         // Returns a special cell that is never active. Can be used for creating objects
         // without adding them to the scene.
@@ -97,7 +97,7 @@ namespace MWWorld
 
         std::vector<MWWorld::Ptr> getAll(const ESM::RefId& id);
 
-        int countSavedGameRecords() const;
+        size_t countSavedGameRecords() const;
 
         void write(ESM::ESMWriter& writer, Loading::Listener& progress) const;
 

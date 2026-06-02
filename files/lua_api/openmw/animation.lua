@@ -1,7 +1,8 @@
 ---
--- `openmw.animation` defines functions that allow control of character animations.
+-- Defines functions that allow control of character animations.
 -- Note that for some methods, such as @{openmw.animation#playBlended} you should use the associated methods on the 
 -- [AnimationController](interface_animation.html) interface rather than invoking this API directly.
+-- @context local
 -- @module animation
 -- @usage local anim = require('openmw.animation')
 
@@ -56,7 +57,7 @@
 
 ---
 -- Skips animations for one frame, equivalent to mwscript's SkipAnim.
--- Can be used only in local scripts on self.
+-- Can only be used on self.
 -- @function [parent=#animation] skipAnimationThisFrame
 -- @param openmw.core#GameObject actor
 
@@ -99,14 +100,14 @@
 
 ---
 -- Cancels and removes the animation group from the list of active animations.
--- Can be used only in local scripts on self.
+-- Can only be used on self.
 -- @function [parent=#animation] cancel
 -- @param openmw.core#GameObject actor
 -- @param #string groupName
 
 ---
 -- Enables or disables looping for the given animation group. Looping is enabled by default.
--- Can be used only in local scripts on self.
+-- Can only be used on self.
 -- @function [parent=#animation] setLoopingEnabled
 -- @param openmw.core#GameObject actor
 -- @param #string groupName
@@ -136,7 +137,7 @@
 ---
 -- Modifies the playback speed of an animation group.
 -- Note that this is not sticky and only affects the speed until the currently playing sequence ends.
--- Can be used only in local scripts on self.
+-- Can only be used on self.
 -- @function [parent=#animation] setSpeed
 -- @param openmw.core#GameObject actor
 -- @param #string groupName
@@ -144,7 +145,7 @@
 
 ---
 -- Clears all animations currently in the animation queue. This affects animations played by mwscript, @{openmw.animation#playQueued}, and ai packages, but does not affect animations played using @{openmw.animation#playBlended}.
--- Can be used only in local scripts on self.
+-- Can only be used on self.
 -- @function [parent=#animation] clearAnimationQueue
 -- @param openmw.core#GameObject actor
 -- @param #boolean clearScripted whether to keep animation with priority Scripted or not.
@@ -153,7 +154,7 @@
 -- Acts as a slightly extended version of MWScript's LoopGroup. Plays this animation exclusively
 -- until it ends, or the queue is cleared using #clearAnimationQueue. Use #clearAnimationQueue and the `startkey` option
 -- to imitate the behavior of LoopGroup's play modes.
--- Can be used only in local scripts on self.
+-- Can only be used on self.
 -- @function [parent=#animation] playQueued
 -- @param openmw.core#GameObject actor
 -- @param #string groupName
@@ -179,7 +180,7 @@
 -- instead of calling this directly. Note that the still hardcoded character controller may at any time and for any reason alter
 -- or cancel currently playing animations, so making your own calls to this function either directly or through the [AnimationController](interface_animation.html)
 -- interface may be of limited utility. For now, use openmw.animation#playQueued to script your own animations.
--- Can be used only in local scripts on self.
+-- Can only be used on self.
 -- @function [parent=#animation] playBlended
 -- @param openmw.core#GameObject actor
 -- @param #string groupName
@@ -187,7 +188,7 @@
 --
 --   * `loops` - a number >= 0, the number of times the animation should loop after the first play (default: 0).
 --   * `priority` - Either a single #Priority value that will be assigned to all bone groups. Or a table mapping bone groups to its priority (default: PRIORITY.Default).
---   * `blendMask` - A mask of which bone groups to include in the animation (Default: BLEND_MASK.All.
+--   * `blendMask` - A mask of which bone groups to include in the animation (Default: BLEND_MASK.All).
 --   * `autoDisable` - If true, the animation will be immediately  removed upon finishing, which means information will not be possible to query once completed. (Default: true)
 --   * `speed` - a floating point number >= 0, the speed at which the animation should play (default: 1)
 --   * `startKey` - the animation key at which the animation should start (default: "start")
@@ -218,17 +219,17 @@
 
 ---
 -- Plays a VFX on the actor.
--- Can be used only in local scripts on self. Can also be evoked by sending an AddVfx event to the target actor.
+-- Can only be used on self. Can also be evoked by sending an AddVfx event to the target actor.
 -- @function [parent=#animation] addVfx
 -- @param openmw.core#GameObject actor
--- @param #string model #string model path (normally taken from a record such as @{openmw.types#StaticRecord.model} or similar)
+-- @param #string model path (normally taken from a record such as @{openmw.types#StaticRecord.model} or similar)
 -- @param #table options optional table of parameters. Can contain:
 --
---   * `loop` - boolean, if true the effect will loop until removed (default: 0).
+--   * `loop` - boolean, if true the effect will loop until removed (default: false).
 --   * `boneName` - name of the bone to attach the vfx to. (default: "")
 --   * `particleTextureOverride` - name of the particle texture to use. (default: "")
 --   * `vfxId` - a string ID that can be used to remove the effect later, using #removeVfx, and to avoid duplicate effects. The default value of "" can have duplicates. To avoid interaction with the engine, use unique identifiers unrelated to magic effect IDs. The engine uses this identifier to add and remove magic effects based on what effects are active on the actor. If this is set equal to the @{openmw.core#MagicEffectId} identifier of the magic effect being added, for example core.magic.EFFECT_TYPE.FireDamage, then the engine will remove it once the fire damage effect on the actor reaches 0. (Default: "").
---   * `useAmbientLighting` - boolean, vfx get a white ambient light attached in Morrowind. If false don't attach this. (default: 1)
+--   * `useAmbientLight` - boolean, vfx get a white ambient light attached in Morrowind. If false don't attach this. (default: true)
 --
 -- @usage local mgef = core.magic.effects.records[myEffectName]
 -- anim.addVfx(self, 'VFX_Hands', {boneName = 'Bip01 L Hand', particleTextureOverride = mgef.particle, loop = mgef.continuousVfx, vfxId = mgef.id..'_myuniquenamehere'})
@@ -241,7 +242,7 @@
 --   model = types.Static.record(mgef.hitStatic).model,
 --   options = {
 --     vfxId = mgef.id,
---     particuleTextureOverride = mgef.particle,
+--     particleTextureOverride = mgef.particle,
 --     loop = false,
 --   }
 -- })
@@ -249,15 +250,15 @@
 
 
 ---
--- Removes a specific VFX
--- Can be used only in local scripts on self.
+-- Removes a specific VFX.
+-- Can only be used on self.
 -- @function [parent=#animation] removeVfx
 -- @param openmw.core#GameObject actor
--- @param #number vfxId an integer ID that uniquely identifies the VFX to remove
+-- @param #string vfxId a string ID that uniquely identifies the VFX to remove
 
 ---
--- Removes all vfx from the actor
--- Can be used only in local scripts on self.
+-- Removes all vfx from the actor.
+-- Can only be used on self.
 -- @function [parent=#animation] removeAllVfx
 -- @param openmw.core#GameObject actor
 

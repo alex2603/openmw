@@ -11,8 +11,13 @@
 #include <components/files/conversion.hpp>
 #include <components/vfs/manager.hpp>
 
+#include "luastateptr.hpp"
 #include "scriptscontainer.hpp"
 #include "utf8.hpp"
+
+#if SOL_IS_ON(SOL_PROPAGATE_EXCEPTIONS)
+#error SOL_PROPAGATE_EXCEPTIONS inhibits error checking
+#endif
 
 namespace LuaUtil
 {
@@ -58,10 +63,10 @@ namespace LuaUtil
 
     bool LuaState::sProfilerEnabled = true;
 
-    void LuaState::countHook(lua_State* L, lua_Debug* ar)
+    void LuaState::countHook(lua_State* state, lua_Debug* /*ar*/)
     {
         LuaState* self;
-        (void)lua_getallocf(L, reinterpret_cast<void**>(&self));
+        (void)lua_getallocf(state, reinterpret_cast<void**>(&self));
         if (self->mActiveScriptIdStack.empty())
             return;
         const ScriptId& activeScript = self->mActiveScriptIdStack.back();
@@ -70,10 +75,10 @@ namespace LuaUtil
         if (self->mSettings.mInstructionLimit > 0
             && self->mWatchdogInstructionCounter > self->mSettings.mInstructionLimit)
         {
-            lua_pushstring(L,
+            lua_pushstring(state,
                 "Lua instruction count exceeded, probably an infinite loop in a script. "
                 "To change the limit set \"[Lua] instruction limit per call\" in settings.cfg");
-            lua_error(L);
+            lua_error(state);
         }
     }
 
@@ -151,37 +156,37 @@ namespace LuaUtil
         return newPtr;
     }
 
-    lua_State* LuaState::createLuaRuntime(LuaState* luaState)
+    LuaStatePtr LuaState::createLuaRuntime(LuaState* luaState)
     {
         if (sProfilerEnabled)
         {
             Log(Debug::Info) << "Initializing LuaUtil::LuaState with profiler";
-            lua_State* L = lua_newstate(&trackingAllocator, luaState);
-            if (L)
-                return L;
-            else
-            {
-                sProfilerEnabled = false;
-                Log(Debug::Error)
-                    << "Failed to initialize LuaUtil::LuaState with custom allocator; disabling Lua profiler";
-            }
+            LuaStatePtr state(lua_newstate(&trackingAllocator, luaState));
+            if (state != nullptr)
+                return state;
+            sProfilerEnabled = false;
+            Log(Debug::Error) << "Failed to initialize LuaUtil::LuaState with custom allocator; disabling Lua profiler";
         }
         Log(Debug::Info) << "Initializing LuaUtil::LuaState without profiler";
-        lua_State* L = luaL_newstate();
-        if (!L)
-            throw std::runtime_error("Can't create Lua runtime");
-        return L;
+        LuaStatePtr state(luaL_newstate());
+        if (state == nullptr)
+            throw std::runtime_error("Failed to create Lua runtime");
+        return state;
     }
 
     LuaState::LuaState(const VFS::Manager* vfs, const ScriptsConfiguration* conf, const LuaStateSettings& settings)
         : mSettings(settings)
-        , mLuaHolder(createLuaRuntime(this))
-        , mSol(mLuaHolder.get())
+        , mLuaState([&] {
+            LuaStatePtr state = createLuaRuntime(this);
+            sol::set_default_state(state.get());
+            return state;
+        }())
+        , mSol(mLuaState.get())
         , mConf(conf)
         , mVFS(vfs)
     {
         if (sProfilerEnabled)
-            lua_sethook(mLuaHolder.get(), &countHook, LUA_MASKCOUNT, countHookStep);
+            lua_sethook(mLuaState.get(), &countHook, LUA_MASKCOUNT, countHookStep);
 
         protectedCall([&](LuaView& view) {
             auto& sol = view.sol();
@@ -343,7 +348,8 @@ namespace LuaUtil
     }
 
     sol::protected_function_result LuaState::runInNewSandbox(const VFS::Path::Normalized& path,
-        const std::string& envName, const std::map<std::string, sol::object>& packages, const sol::object& hiddenData)
+        const std::string& envName, const std::map<std::string, sol::main_object>& packages,
+        const sol::main_object& hiddenData)
     {
         // TODO
         sol::protected_function script = loadScriptAndCache(path);
@@ -451,7 +457,7 @@ namespace LuaUtil
             return call(sol::state_view(obj.lua_state())["tostring"], obj);
     }
 
-    std::string internal::formatCastingError(const sol::object& obj, const std::type_info& t)
+    std::string Internal::formatCastingError(const sol::object& obj, const std::type_info& t)
     {
         const char* typeName = t.name();
         if (t == typeid(int))

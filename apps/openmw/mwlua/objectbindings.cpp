@@ -100,7 +100,8 @@ namespace MWLua
             stats.land(true);
             stats.setTeleported(true);
             world->getPlayer().setTeleported(true);
-            world->changeToCell(destCell->getCell()->getId(), toPos(pos, rot), false);
+            bool differentCell = ptr.getCell() != destCell;
+            world->changeToCell(destCell->getCell()->getId(), toPos(pos, rot), false, differentCell);
             MWWorld::Ptr newPtr = world->getPlayerPtr();
             world->moveObject(newPtr, pos);
             world->rotateObject(newPtr, rot);
@@ -217,7 +218,7 @@ namespace MWLua
                     return owner.serializeText();
             };
             auto setOwnerRecordId = [](const OwnerT& o, sol::optional<std::string_view> ownerId) {
-                if (std::is_same_v<ObjectT, LObject> && !dynamic_cast<const SelfObject*>(&o.mObj))
+                if (std::is_same_v<ObjectT, LObject> && !(o.mObj.isSelfObject()))
                     throw std::runtime_error("Local scripts can set an owner only on self");
                 const MWWorld::Ptr& ptr = o.mObj.ptr();
 
@@ -243,7 +244,7 @@ namespace MWLua
             };
             auto setOwnerFactionId = [](const OwnerT& o, sol::optional<std::string> ownerId) {
                 ESM::RefId ownerFac;
-                if (std::is_same_v<ObjectT, LObject> && !dynamic_cast<const SelfObject*>(&o.mObj))
+                if (std::is_same_v<ObjectT, LObject> && !(o.mObj.isSelfObject()))
                     throw std::runtime_error("Local scripts can set an owner faction only on self");
                 if (!ownerId)
                 {
@@ -258,16 +259,17 @@ namespace MWLua
             };
             ownerT["factionId"] = sol::property(getOwnerFactionId, setOwnerFactionId);
 
-            auto getOwnerFactionRank = [](const OwnerT& o) -> sol::optional<size_t> {
+            auto getOwnerFactionRank = [](const OwnerT& o) -> sol::optional<int64_t> {
                 int rank = o.mObj.ptr().getCellRef().getFactionRank();
                 if (rank < 0)
                     return sol::nullopt;
                 return LuaUtil::toLuaIndex(rank);
             };
-            auto setOwnerFactionRank = [](const OwnerT& o, sol::optional<size_t> factionRank) {
-                if (std::is_same_v<ObjectT, LObject> && !dynamic_cast<const SelfObject*>(&o.mObj))
+            auto setOwnerFactionRank = [](const OwnerT& o, sol::optional<int64_t> factionRank) {
+                if (std::is_same_v<ObjectT, LObject> && !(o.mObj.isSelfObject()))
                     throw std::runtime_error("Local scripts can set an owner faction rank only on self");
-                o.mObj.ptr().getCellRef().setFactionRank(LuaUtil::fromLuaIndex(factionRank.value_or(0)));
+                int64_t rank = std::max<int64_t>(0, LuaUtil::fromLuaIndex(factionRank.value_or(0)));
+                o.mObj.ptr().getCellRef().setFactionRank(static_cast<int>(rank));
             };
             ownerT["factionRank"] = sol::property(getOwnerFactionRank, setOwnerFactionRank);
 
@@ -317,6 +319,13 @@ namespace MWLua
             objectT["rotation"] = sol::readonly_property([](const ObjectT& o) -> LuaUtil::TransformQ {
                 return { toQuat(o.ptr().getRefData().getPosition(), o.ptr().getClass().isActor()) };
             });
+            objectT["startingCell"] = sol::readonly_property([](const ObjectT& o) -> sol::optional<Cell<ObjectT>> {
+                const MWWorld::Ptr& ptr = o.ptr();
+                MWWorld::WorldModel* wm = MWBase::Environment::get().getWorldModel();
+                if (ptr.isInCell() && ptr.getCell() != &wm->getDraftCell())
+                    return Cell<ObjectT>{ ptr.getCell()->getOriginCell(ptr) };
+                return sol::nullopt;
+            });
             objectT["startingPosition"] = sol::readonly_property(
                 [](const ObjectT& o) -> osg::Vec3f { return o.ptr().getCellRef().getPosition().asVec3(); });
             objectT["startingRotation"] = sol::readonly_property([](const ObjectT& o) -> LuaUtil::TransformQ {
@@ -329,10 +338,9 @@ namespace MWLua
                 return LuaUtil::Box{ bb.center(), bb._max - bb.center() };
             };
 
-            objectT["type"]
-                = sol::readonly_property([types = getTypeToPackageTable(context.sol())](const ObjectT& o) mutable {
-                      return types[getLiveCellRefType(o.ptr().mRef)];
-                  });
+            objectT["type"] = sol::readonly_property(
+                [types = getTypeToPackageTable(context.sol())](
+                    const ObjectT& o) -> sol::object { return types[getLiveCellRefType(o.ptr().mRef)]; });
 
             objectT["count"] = sol::readonly_property([](const ObjectT& o) { return o.ptr().getCellRef().getCount(); });
             objectT[sol::meta_function::equal_to] = [](const ObjectT& a, const ObjectT& b) { return a.id() == b.id(); };
@@ -350,8 +358,8 @@ namespace MWLua
                     throw std::runtime_error(
                         "The argument of `activateBy` must be an actor who activates the object. Got: "
                         + actor.toString());
-                if (objPtr.getRefData().activate())
-                    MWBase::Environment::get().getLuaManager()->objectActivated(objPtr, actorPtr);
+
+                MWBase::Environment::get().getLuaManager()->objectActivated(objPtr, actorPtr);
             };
 
             auto isEnabled = [](const ObjectT& o) { return o.ptr().getRefData().isEnabled(); };
@@ -444,16 +452,16 @@ namespace MWLua
                     if (!ptr.getContainerStore() && currentCount > countToRemove)
                         return std::nullopt;
                     // Delayed action to trigger side effects
-                    return [signedCountToRemove](MWWorld::Ptr ptr) {
+                    return [signedCountToRemove](MWWorld::Ptr p) {
                         // Restore the original count
-                        ptr.getCellRef().setCount(ptr.getCellRef().getCount(false) + signedCountToRemove);
+                        p.getCellRef().setCount(p.getCellRef().getCount(false) + signedCountToRemove);
                         // And now remove properly
-                        if (ptr.getContainerStore())
-                            ptr.getContainerStore()->remove(ptr, std::abs(signedCountToRemove), false);
+                        if (p.getContainerStore())
+                            p.getContainerStore()->remove(p, std::abs(signedCountToRemove), false);
                         else
                         {
-                            MWBase::Environment::get().getWorld()->disable(ptr);
-                            MWBase::Environment::get().getWorld()->deleteObject(ptr);
+                            MWBase::Environment::get().getWorld()->disable(p);
+                            MWBase::Environment::get().getWorld()->deleteObject(p);
                         }
                     };
                 };
@@ -644,6 +652,9 @@ namespace MWLua
             }
             inventoryT["isResolved"] = [](const InventoryT& inventory) -> bool {
                 const MWWorld::Ptr& ptr = inventory.mObj.ptr();
+                // Avoid initializing custom data
+                if (!ptr.getRefData().getCustomData())
+                    return false;
                 MWWorld::ContainerStore& store = ptr.getClass().getContainerStore(ptr);
                 return store.isResolved();
             };

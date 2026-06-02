@@ -89,7 +89,7 @@ local function processMovement()
     local sideMovement = input.getRangeActionValue('MoveRight') - input.getRangeActionValue('MoveLeft')
     local run = input.getBooleanActionValue('Run') ~= settings:get('alwaysRun')
 
-    if movement ~= 0 or not Actor.canMove(self) then
+    if movement ~= 0 then
         autoMove = false
     elseif autoMove then
         movement = 1
@@ -171,11 +171,11 @@ local function processAttacking()
     -- for spell-casting, set controls.use to true for exactly one frame
     -- otherwise spell casting is attempted every frame while Use is true
     if Actor.getStance(self) == Actor.STANCE.Spell then
-        self.controls.use = startUse and 1 or 0
+        self.controls.use = startUse and self.ATTACK_TYPE.Any or self.ATTACK_TYPE.NoAttack
     elseif Actor.getStance(self) == Actor.STANCE.Weapon and input.getBooleanActionValue('Use') then
-        self.controls.use = 1
+        self.controls.use = self.ATTACK_TYPE.Any
     else
-        self.controls.use = 0
+        self.controls.use = self.ATTACK_TYPE.NoAttack
     end
     startUse = false
 end
@@ -250,6 +250,7 @@ return {
     interfaceName = 'Controls',
     ---
     -- @module Controls
+    -- @context player
     -- @usage require('openmw.interfaces').Controls
     interface = {
         --- Interface version

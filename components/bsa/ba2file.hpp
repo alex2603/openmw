@@ -1,12 +1,12 @@
-#ifndef BSA_BA2_FILE_H
-#define BSA_BA2_FILE_H
+#ifndef OPENMW_COMPONENTS_BSA_BA2FILE_HPP
+#define OPENMW_COMPONENTS_BSA_BA2FILE_HPP
 
 #include <cstdint>
-#include <string>
+#include <string_view>
 
 namespace Bsa
 {
-    uint32_t generateHash(const std::string& name);
+    uint32_t generateHash(std::string_view name);
     uint32_t generateExtensionHash(std::string_view extension);
 
     enum class BA2Version : std::uint32_t

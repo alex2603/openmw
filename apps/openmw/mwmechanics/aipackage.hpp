@@ -16,6 +16,8 @@
 namespace ESM
 {
     struct Cell;
+    struct Pathgrid;
+
     namespace AiSequence
     {
         struct AiSequence;
@@ -24,6 +26,7 @@ namespace ESM
 
 namespace MWMechanics
 {
+    class AiSequence;
     class CharacterController;
     class PathgridGraph;
 
@@ -119,6 +122,7 @@ namespace MWMechanics
 
         /// Reset pathfinding state
         void reset();
+        virtual void resetInitialPosition() {}
 
         /// Return if actor's rotation speed is sufficient to rotate to the destination pathpoint on the run. Otherwise
         /// actor should rotate while standing.
@@ -168,15 +172,15 @@ namespace MWMechanics
         AiReactionTimer mReaction;
 
         ESM::RefId mTargetActorRefId;
-        mutable int mTargetActorId;
-        mutable MWWorld::Ptr mCachedTarget;
-
-        short mRotateOnTheRunChecks; // attempts to check rotation to the pathpoint on the run possibility
-
-        bool mIsShortcutting; // if shortcutting at the moment
-        bool mShortcutProhibited; // shortcutting may be prohibited after unsuccessful attempt
+        mutable ESM::RefNum mTargetActor;
         osg::Vec3f mShortcutFailPos; // position of last shortcut fail
         float mLastDestinationTolerance = 0;
+        short mRotateOnTheRunChecks = 0; // attempts to check rotation to the pathpoint on the run possibility
+        mutable bool mTargetNotFound = false;
+        bool mIsShortcutting = false; // if shortcutting at the moment
+        bool mShortcutProhibited = false; // shortcutting may be prohibited after unsuccessful attempt
+
+        friend class AiSequence;
 
     private:
         bool isNearInactiveCell(osg::Vec3f position);

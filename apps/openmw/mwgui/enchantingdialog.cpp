@@ -66,6 +66,12 @@ namespace MWGui
         mBuyButton->eventMouseButtonClick += MyGUI::newDelegate(this, &EnchantingDialog::onBuyButtonClicked);
         mTypeButton->eventMouseButtonClick += MyGUI::newDelegate(this, &EnchantingDialog::onTypeButtonClicked);
         mName->eventEditSelectAccept += MyGUI::newDelegate(this, &EnchantingDialog::onAccept);
+
+        mControllerButtons.mA = "#{Interface:Select}";
+        mControllerButtons.mB = "#{Interface:Cancel}";
+        mControllerButtons.mY = "#{OMWEngine:EnchantType}";
+        mControllerButtons.mL1 = "#{Interface:Item}";
+        mControllerButtons.mR1 = "#{Interface:Soul}";
     }
 
     void EnchantingDialog::onOpen()
@@ -173,6 +179,7 @@ namespace MWGui
             mEnchanting.setSelfEnchanting(false);
             mEnchanting.setEnchanter(ptr);
             mBuyButton->setCaptionWithReplacing("#{sBuy}");
+            mControllerButtons.mX = "#{Interface:Buy}";
             mChanceLayout->setVisible(false);
             mPtr = ptr;
             setSoulGem(MWWorld::Ptr());
@@ -184,6 +191,7 @@ namespace MWGui
             mEnchanting.setSelfEnchanting(true);
             mEnchanting.setEnchanter(MWMechanics::getPlayer());
             mBuyButton->setCaptionWithReplacing("#{sCreate}");
+            mControllerButtons.mX = "#{Interface:Create}";
             mChanceLayout->setVisible(Settings::game().mShowEnchantChance);
             mPtr = MWMechanics::getPlayer();
             setSoulGem(ptr);
@@ -211,12 +219,12 @@ namespace MWGui
         mEnchanting.setEnchanter(MWWorld::Ptr());
     }
 
-    void EnchantingDialog::onCancelButtonClicked(MyGUI::Widget* sender)
+    void EnchantingDialog::onCancelButtonClicked(MyGUI::Widget* /*sender*/)
     {
         MWBase::Environment::get().getWindowManager()->removeGuiMode(GM_Enchanting);
     }
 
-    void EnchantingDialog::onSelectItem(MyGUI::Widget* sender)
+    void EnchantingDialog::onSelectItem(MyGUI::Widget* /*sender*/)
     {
         if (mEnchanting.getOldItem().isEmpty())
         {
@@ -270,7 +278,7 @@ namespace MWGui
         mItemSelectionDialog->setVisible(false);
     }
 
-    void EnchantingDialog::onSelectSoul(MyGUI::Widget* sender)
+    void EnchantingDialog::onSelectSoul(MyGUI::Widget* /*sender*/)
     {
         if (mEnchanting.getGem().isEmpty())
         {
@@ -299,7 +307,7 @@ namespace MWGui
         updateLabels();
     }
 
-    void EnchantingDialog::onTypeButtonClicked(MyGUI::Widget* sender)
+    void EnchantingDialog::onTypeButtonClicked(MyGUI::Widget* /*sender*/)
     {
         mEnchanting.nextCastStyle();
         updateLabels();
@@ -314,7 +322,7 @@ namespace MWGui
         MWBase::Environment::get().getWindowManager()->injectKeyRelease(MyGUI::KeyCode::None);
     }
 
-    void EnchantingDialog::onBuyButtonClicked(MyGUI::Widget* sender)
+    void EnchantingDialog::onBuyButtonClicked(MyGUI::Widget* /*sender*/)
     {
         if (mEffects.size() <= 0)
         {
@@ -402,5 +410,23 @@ namespace MWGui
                 updateEffectsView();
             }
         }
+    }
+
+    bool EnchantingDialog::onControllerButtonEvent(const SDL_ControllerButtonEvent& arg)
+    {
+        if (arg.button == SDL_CONTROLLER_BUTTON_B)
+            onCancelButtonClicked(mCancelButton);
+        else if (arg.button == SDL_CONTROLLER_BUTTON_X)
+            onBuyButtonClicked(mBuyButton);
+        else if (arg.button == SDL_CONTROLLER_BUTTON_Y)
+            onTypeButtonClicked(mTypeButton);
+        else if (arg.button == SDL_CONTROLLER_BUTTON_LEFTSHOULDER)
+            onSelectItem(mItemBox);
+        else if (arg.button == SDL_CONTROLLER_BUTTON_RIGHTSHOULDER)
+            onSelectSoul(mSoulBox);
+        else
+            return EffectEditorBase::onControllerButtonEvent(arg);
+
+        return true;
     }
 }

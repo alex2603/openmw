@@ -59,11 +59,10 @@ namespace MWGui
     void LoadingScreen::findSplashScreens()
     {
         auto isSupportedExtension = [](const std::string_view& ext) {
-            static const std::array<std::string, 7> supported_extensions{ { "tga", "dds", "ktx", "png", "bmp", "jpeg",
+            static const std::array<std::string, 7> supportedExtensions{ { "tga", "dds", "ktx", "png", "bmp", "jpeg",
                 "jpg" } };
             return !ext.empty()
-                && std::find(supported_extensions.begin(), supported_extensions.end(), ext)
-                != supported_extensions.end();
+                && std::find(supportedExtensions.begin(), supportedExtensions.end(), ext) != supportedExtensions.end();
         };
 
         constexpr VFS::Path::NormalizedView splash("splash/");
@@ -121,8 +120,9 @@ namespace MWGui
 
         void operator()(osg::RenderInfo& renderInfo) const override
         {
-            int w = renderInfo.getCurrentCamera()->getViewport()->width();
-            int h = renderInfo.getCurrentCamera()->getViewport()->height();
+            const osg::Viewport* viewPort = renderInfo.getCurrentCamera()->getViewport();
+            int w = static_cast<int>(viewPort->width());
+            int h = static_cast<int>(viewPort->height());
             mTexture->copyTexImage2D(*renderInfo.getState(), 0, 0, w, h);
 
             mOneshot = false;
@@ -260,10 +260,10 @@ namespace MWGui
             return false;
 
         // the minimal delay before a loading screen shows
-        const float initialDelay = 0.05;
+        constexpr float initialDelay = 0.05f;
 
         bool alreadyShown = (mLastRenderTime > mLoadingOnTime);
-        float diff = (mTimer.time_m() - mLoadingOnTime);
+        double diff = (mTimer.time_m() - mLoadingOnTime);
 
         if (!alreadyShown)
         {
@@ -294,7 +294,7 @@ namespace MWGui
 
         if (!mGuiTexture.get())
         {
-            mGuiTexture = std::make_unique<osgMyGUI::OSGTexture>(mTexture);
+            mGuiTexture = std::make_unique<MyGUIPlatform::OSGTexture>(mTexture);
         }
 
         if (!mCopyFramebufferToTextureCallback)
@@ -310,7 +310,8 @@ namespace MWGui
         mSplashImage->setVisible(false);
 
         mSceneImage->setRenderItemTexture(mGuiTexture.get());
-        mSceneImage->getSubWidgetMain()->_setUVSet(MyGUI::FloatRect(0.f, 0.f, 1.f, 1.f));
+        // The widget is Y-down, the RTT image is Y-up, so this UV is inverted
+        mSceneImage->getSubWidgetMain()->_setUVSet(MyGUI::FloatRect(0.f, 1.f, 1.f, 0.f));
         mSceneImage->setVisible(true);
     }
 

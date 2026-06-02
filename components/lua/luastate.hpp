@@ -10,6 +10,7 @@
 #include <components/vfs/pathutil.hpp>
 
 #include "configuration.hpp"
+#include "luastateptr.hpp"
 
 namespace VFS
 {
@@ -43,13 +44,14 @@ namespace LuaUtil
 
         LuaView(const LuaView&) = delete;
 
-        LuaView(lua_State* L)
-            : mSol(L)
+        LuaView(lua_State* state)
+            : mSol(state)
         {
         }
 
     public:
-        friend class LuaState;
+        template <class Function>
+        friend int invokeProtectedCall(lua_State*, Function&&);
         // Returns underlying sol::state.
         sol::state_view& sol() { return mSol; }
 
@@ -58,12 +60,51 @@ namespace LuaUtil
     };
 
     template <typename Key, typename Value>
-    sol::table tableFromPairs(lua_State* L, std::initializer_list<std::pair<Key, Value>> list)
+    sol::table tableFromPairs(lua_State* state, std::initializer_list<std::pair<Key, Value>> list)
     {
-        sol::table res(L, sol::create);
+        sol::table res(state, sol::create);
         for (const auto& [k, v] : list)
             res[k] = v;
         return res;
+    }
+
+    // Pushing to the stack from outside a Lua context crashes the engine if no memory can be allocated to grow the
+    // stack
+    template <class Function>
+    [[nodiscard]] int invokeProtectedCall(lua_State* luaState, Function&& function)
+    {
+        if (!lua_checkstack(luaState, 2))
+            return LUA_ERRMEM;
+        lua_pushcfunction(luaState, [](lua_State* state) {
+            void* f = lua_touserdata(state, 1);
+            LuaView view(state);
+            (*static_cast<Function*>(f))(view);
+            return 0;
+        });
+        lua_pushlightuserdata(luaState, &function);
+        return lua_pcall(luaState, 1, 0, 0);
+    }
+
+    template <class Lambda>
+    void protectedCall(lua_State* luaState, Lambda&& f)
+    {
+        int result = invokeProtectedCall(luaState, std::forward<Lambda>(f));
+        switch (result)
+        {
+            case LUA_OK:
+                break;
+            case LUA_ERRMEM:
+                throw std::runtime_error("Lua error: out of memory");
+            case LUA_ERRRUN:
+            {
+                sol::optional<std::string> error = sol::stack::check_get<std::string>(luaState);
+                if (error)
+                    throw std::runtime_error(*error);
+            }
+                [[fallthrough]];
+            default:
+                throw std::runtime_error("Lua error: " + std::to_string(result));
+        }
     }
 
     // Holds Lua state.
@@ -86,43 +127,10 @@ namespace LuaUtil
         LuaState(const LuaState&) = delete;
         LuaState(LuaState&&) = delete;
 
-        // Pushing to the stack from outside a Lua context crashes the engine if no memory can be allocated to grow the
-        // stack
-        template <class Lambda>
-        [[nodiscard]] int invokeProtectedCall(Lambda&& f) const
-        {
-            if (!lua_checkstack(mSol.lua_state(), 2))
-                return LUA_ERRMEM;
-            lua_pushcfunction(mSol.lua_state(), [](lua_State* L) {
-                void* f = lua_touserdata(L, 1);
-                LuaView view(L);
-                (*static_cast<Lambda*>(f))(view);
-                return 0;
-            });
-            lua_pushlightuserdata(mSol.lua_state(), &f);
-            return lua_pcall(mSol.lua_state(), 1, 0, 0);
-        }
-
         template <class Lambda>
         void protectedCall(Lambda&& f) const
         {
-            int result = invokeProtectedCall(std::forward<Lambda>(f));
-            switch (result)
-            {
-                case LUA_OK:
-                    break;
-                case LUA_ERRMEM:
-                    throw std::runtime_error("Lua error: out of memory");
-                case LUA_ERRRUN:
-                {
-                    sol::optional<std::string> error = sol::stack::check_get<std::string>(mSol.lua_state());
-                    if (error)
-                        throw std::runtime_error(*error);
-                }
-                    [[fallthrough]];
-                default:
-                    throw std::runtime_error("Lua error: " + std::to_string(result));
-            }
+            LuaUtil::protectedCall(mSol.lua_state(), std::forward<Lambda>(f));
         }
 
         // Note that constructing a sol::state_view is only safe from a Lua context. Use protectedCall to get one
@@ -148,8 +156,8 @@ namespace LuaUtil
         //         should be either a sol::table or a sol::function. If it is a function, it will be evaluated
         //         (once per sandbox) with the argument 'hiddenData' the first time when requested.
         sol::protected_function_result runInNewSandbox(const VFS::Path::Normalized& path,
-            const std::string& envName = "unnamed", const std::map<std::string, sol::object>& packages = {},
-            const sol::object& hiddenData = sol::nil);
+            const std::string& envName = "unnamed", const std::map<std::string, sol::main_object>& packages = {},
+            const sol::main_object& hiddenData = sol::nil);
 
         void dropScriptCache() { mCompiledScripts.clear(); }
 
@@ -185,10 +193,10 @@ namespace LuaUtil
             ScriptId scriptId, const sol::protected_function& fn, Args&&... args);
 
         sol::function loadScriptAndCache(const VFS::Path::Normalized& path);
-        static void countHook(lua_State* L, lua_Debug* ar);
+        static void countHook(lua_State* state, lua_Debug* ar);
         static void* trackingAllocator(void* ud, void* ptr, size_t osize, size_t nsize);
 
-        lua_State* createLuaRuntime(LuaState* luaState);
+        static LuaStatePtr createLuaRuntime(LuaState* luaState);
 
         struct AllocOwner
         {
@@ -206,25 +214,8 @@ namespace LuaUtil
         uint64_t mSmallAllocMemoryUsage = 0;
         std::vector<int64_t> mMemoryUsage;
 
-        class LuaStateHolder
-        {
-        public:
-            LuaStateHolder(lua_State* L)
-                : L(L)
-            {
-                sol::set_default_state(L);
-            }
-            ~LuaStateHolder() { lua_close(L); }
-            LuaStateHolder(const LuaStateHolder&) = delete;
-            LuaStateHolder(LuaStateHolder&&) = delete;
-            lua_State* get() { return L; }
-
-        private:
-            lua_State* L;
-        };
-
         // Must be declared before mSol and all sol-related objects. Then on exit it will be destructed the last.
-        LuaStateHolder mLuaHolder;
+        LuaStatePtr mLuaState;
 
         sol::state_view mSol;
         const ScriptsConfiguration* mConf;
@@ -295,7 +286,7 @@ namespace LuaUtil
     // work around for a (likely) sol3 bug
     // when the index meta method throws, simply calling table.get crashes instead of re-throwing the error
     template <class Key>
-    sol::object safeGet(const sol::table& table, const Key& key)
+    sol::object safeGet(const sol::lua_table& table, const Key& key)
     {
         auto index = table.traverse_raw_get<sol::optional<sol::main_protected_function>>(
             sol::metatable_key, sol::meta_function::index);
@@ -315,9 +306,9 @@ namespace LuaUtil
     template <class... Str>
     sol::object getFieldOrNil(const sol::object& table, std::string_view first, const Str&... str)
     {
-        if (!table.is<sol::table>())
+        if (!table.is<sol::lua_table>())
             return sol::nil;
-        sol::object value = safeGet(table.as<sol::table>(), first);
+        sol::object value = safeGet(table.as<sol::lua_table>(), first);
         if constexpr (sizeof...(str) == 0)
             return value;
         else
@@ -341,7 +332,7 @@ namespace LuaUtil
     // String representation of a Lua object. Should be used for debugging/logging purposes only.
     std::string toString(const sol::object&);
 
-    namespace internal
+    namespace Internal
     {
         std::string formatCastingError(const sol::object& obj, const std::type_info&);
     }
@@ -350,7 +341,7 @@ namespace LuaUtil
     decltype(auto) cast(const sol::object& obj)
     {
         if (!obj.is<T>())
-            throw std::runtime_error(internal::formatCastingError(obj, typeid(T)));
+            throw std::runtime_error(Internal::formatCastingError(obj, typeid(T)));
         return obj.as<T>();
     }
 

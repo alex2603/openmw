@@ -5,13 +5,22 @@
 #include <components/esm3/loadarmo.hpp>
 #include <components/esm3/loadbook.hpp>
 #include <components/esm3/loadclot.hpp>
+#include <components/esm3/loadcont.hpp>
+#include <components/esm3/loadcrea.hpp>
+#include <components/esm3/loaddoor.hpp>
+#include <components/esm3/loadench.hpp>
 #include <components/esm3/loadligh.hpp>
 #include <components/esm3/loadmisc.hpp>
-#include <components/esm3/loadskil.hpp>
+#include <components/esm3/loadnpc.hpp>
+#include <components/esm3/loadprob.hpp>
+#include <components/esm3/loadspel.hpp>
+#include <components/esm3/loadstat.hpp>
 #include <components/esm3/loadweap.hpp>
 #include <components/lua/luastate.hpp>
+#include <components/misc/finitevalues.hpp>
 
 #include "../mwbase/environment.hpp"
+#include "../mwbase/mechanicsmanager.hpp"
 #include "../mwbase/statemanager.hpp"
 #include "../mwbase/windowmanager.hpp"
 #include "../mwbase/world.hpp"
@@ -26,6 +35,7 @@
 #include "luamanagerimp.hpp"
 
 #include "animationbindings.hpp"
+#include "context.hpp"
 #include "corebindings.hpp"
 #include "mwscriptbindings.hpp"
 
@@ -56,10 +66,23 @@ namespace MWLua
 
     static void addWorldTimeBindings(sol::table& api, const Context& context)
     {
-        MWWorld::DateTimeManager* timeManager = MWBase::Environment::get().getWorld()->getTimeManager();
+        using Misc::FiniteFloat;
 
-        api["setGameTimeScale"] = [timeManager](double scale) { timeManager->setGameTimeScale(scale); };
-        api["setSimulationTimeScale"] = [context, timeManager](float scale) {
+        Misc::NotNullPtr<MWBase::World> world = MWBase::Environment::get().getWorld();
+        MWWorld::DateTimeManager* timeManager = world->getTimeManager();
+
+        api["advanceTime"] = [context, world](const FiniteFloat hours) {
+            if (hours <= 0.0f)
+                throw std::runtime_error("Time may only be advanced forward");
+
+            context.mLuaManager->addAction([world, hours] {
+                world->advanceTime(hours);
+                MWBase::Environment::get().getMechanicsManager()->fastForwardAi();
+            });
+        };
+
+        api["setGameTimeScale"] = [timeManager](const FiniteFloat scale) { timeManager->setGameTimeScale(scale); };
+        api["setSimulationTimeScale"] = [context, timeManager](const FiniteFloat scale) {
             context.mLuaManager->addAction([scale, timeManager] { timeManager->setSimulationTimeScale(scale); });
         };
 
@@ -177,6 +200,10 @@ namespace MWLua
                 checkGameInitialized(lua);
                 return MWBase::Environment::get().getESMStore()->insert(book);
             },
+            [lua = context.mLua](const ESM::Enchantment& enchantment) -> const ESM::Enchantment* {
+                checkGameInitialized(lua);
+                return MWBase::Environment::get().getESMStore()->insert(enchantment);
+            },
             [lua = context.mLua](const ESM::Miscellaneous& misc) -> const ESM::Miscellaneous* {
                 checkGameInitialized(lua);
                 return MWBase::Environment::get().getESMStore()->insert(misc);
@@ -184,6 +211,38 @@ namespace MWLua
             [lua = context.mLua](const ESM::Potion& potion) -> const ESM::Potion* {
                 checkGameInitialized(lua);
                 return MWBase::Environment::get().getESMStore()->insert(potion);
+            },
+            [lua = context.mLua](const ESM::Probe& probe) -> const ESM::Probe* {
+                checkGameInitialized(lua);
+                return MWBase::Environment::get().getESMStore()->insert(probe);
+            },
+            [lua = context.mLua](const ESM::Spell& spell) -> const ESM::Spell* {
+                checkGameInitialized(lua);
+                return MWBase::Environment::get().getESMStore()->insert(spell);
+            },
+            [lua = context.mLua](const ESM::Static& stat) -> const ESM::Static* {
+                checkGameInitialized(lua);
+                return MWBase::Environment::get().getESMStore()->insert(stat);
+            },
+            [lua = context.mLua](const ESM::NPC& npc) -> const ESM::NPC* {
+                checkGameInitialized(lua);
+                if (npc.mId.empty())
+                    return MWBase::Environment::get().getESMStore()->insert(npc);
+                ESM::NPC copy = npc;
+                copy.mId = {};
+                return MWBase::Environment::get().getESMStore()->insert(copy);
+            },
+            [lua = context.mLua](const ESM::Creature& crea) -> const ESM::Creature* {
+                checkGameInitialized(lua);
+                return MWBase::Environment::get().getESMStore()->insert(crea);
+            },
+            [lua = context.mLua](const ESM::Container& cont) -> const ESM::Container* {
+                checkGameInitialized(lua);
+                return MWBase::Environment::get().getESMStore()->insert(cont);
+            },
+            [lua = context.mLua](const ESM::Door& cont) -> const ESM::Door* {
+                checkGameInitialized(lua);
+                return MWBase::Environment::get().getESMStore()->insert(cont);
             },
             [lua = context.mLua](const ESM::Weapon& weapon) -> const ESM::Weapon* {
                 checkGameInitialized(lua);

@@ -15,7 +15,7 @@ set(OPENMW_HEADERS
     profile.hpp
 )
 
-source_group(apps/openmw FILES main.cpp android_main.cpp ${OPENMW_SOURCES} ${OPENMW_HEADERS} ${OPENMW_RESOURCES})
+source_group(apps/openmw FILES main.cpp androidmain.cpp ${OPENMW_SOURCES} ${OPENMW_HEADERS} ${OPENMW_RESOURCES})
 
 add_openmw_dir (mwrender
     actors objects renderingmanager animation rotatecontroller sky skyutil npcanimation esm4npcanimation vismask
@@ -44,11 +44,11 @@ add_openmw_dir (mwgui
     tradeitemmodel companionitemmodel pickpocketitemmodel controllers savegamedialog
     recharge mode videowidget backgroundimage itemwidget screenfader debugwindow spellmodel spellview
     draganddrop timeadvancer jailscreen itemchargeview keyboardnavigation textcolours statswatcher
-    postprocessorhud settings
+    postprocessorhud settings worlditemmodel itemtransfer controllerbuttonsoverlay inventorytabsoverlay
     )
 
 add_openmw_dir (mwdialogue
-    dialoguemanagerimp journalimp journalentry quest topic filter selectwrapper hypertextparser keywordsearch scripttest
+    dialoguemanagerimp journalimp journalentry quest topic filter selectwrapper keywordsearch scripttest
     )
 
 add_openmw_dir (mwscript
@@ -59,20 +59,20 @@ add_openmw_dir (mwscript
     )
 
 add_openmw_dir (mwlua
-    luamanagerimp object objectlists userdataserializer luaevents engineevents objectvariant
-    context menuscripts globalscripts localscripts playerscripts luabindings objectbindings cellbindings
+    luamanagerimp object objectlists userdataserializer luaevents engineevents objectvariant loadscripts contentbindings
+    context menuscripts globalscripts localscripts playerscripts luabindings objectbindings cellbindings coremwscriptbindings
     mwscriptbindings camerabindings vfsbindings uibindings soundbindings inputbindings nearbybindings dialoguebindings
-    postprocessingbindings stats recordstore debugbindings corebindings worldbindings worker magicbindings factionbindings
-    classbindings itemdata inputprocessor animationbindings birthsignbindings racebindings markupbindings
-    types/types types/door types/item types/actor types/container types/lockable types/weapon types/npc
+    postprocessingbindings stats recordstore debugbindings corebindings worldbindings worker landbindings magicbindings factionbindings
+    classbindings itemdata inputprocessor animationbindings birthsignbindings racebindings markupbindings weatherbindings regionbindings
+    types/types types/door types/item types/actor types/container types/lockable types/weapon types/npc types/bodypart
     types/creature types/player types/activator types/book types/lockpick types/probe types/apparatus
     types/potion types/ingredient types/misc types/repair types/armor types/light types/static
-    types/clothing types/levelledlist types/terminal
+    types/clothing types/levelledlist types/terminal magictypebindings
     )
 
 add_openmw_dir (mwsound
-    soundmanagerimp openal_output ffmpeg_decoder sound sound_buffer sound_decoder sound_output
-    loudness movieaudiofactory alext efx efx-presets regionsoundselector watersoundupdater
+    soundmanagerimp openaloutput ffmpegdecoder sound soundbuffer sounddecoder soundoutput
+    loudness movieaudiofactory alext efx efxpresets regionsoundselector watersoundupdater
     )
 
 add_openmw_dir (mwworld
@@ -123,11 +123,27 @@ add_library(openmw-lib STATIC
     ${OPENMW_SOURCES}
 )
 
+if (MSVC)
+    # these TUs take a lot of memory for codegen
+    # in CI, they often go over the 8GB memory limit if another cl.exe is running at the same time
+    # this option (make sure you're not looking at the docs for the identically-named linker option) stops four codegen threads being spun off
+    # it hurts build time ~33% to enable this unnecessarily, though, so target it to the hungriest boys
+    set_source_files_properties(
+        mwlua/dialoguebindings.cpp
+        mwlua/magicbindings.cpp
+        mwlua/objectbindings
+        mwlua/stats.cpp
+        mwworld/esmstore.cpp
+        PROPERTIES
+        COMPILE_OPTIONS /cgthreads1
+    )
+endif()
+
 if(BUILD_OPENMW)
     if (ANDROID)
         add_library(openmw SHARED
             main.cpp
-            android_main.cpp
+            androidmain.cpp
         )
     else()
         openmw_add_executable(openmw
@@ -138,6 +154,12 @@ if(BUILD_OPENMW)
     endif()
 
     target_link_libraries(openmw openmw-lib)
+
+    # Workaround necessary to ensure osgAnimation::MatrixLinearSampler dynamic casts work under Clang
+    # NOTE: it's unclear whether the broken behavior is spec-compliant
+    if (CMAKE_CXX_COMPILER_ID STREQUAL Clang)
+        set_target_properties(openmw PROPERTIES ENABLE_EXPORTS ON)
+    endif()
 endif()
 
 # Sound stuff - here so CMake doesn't stupidly recompile EVERYTHING
@@ -164,8 +186,8 @@ target_link_libraries(openmw-lib
     ${MyGUI_LIBRARIES}
     SDL2::SDL2
     ${RecastNavigation_LIBRARIES}
-    "osg-ffmpeg-videoplayer"
-    "oics"
+    osg-ffmpeg-videoplayer
+    oics
     components
 )
 
@@ -194,8 +216,6 @@ if (MSVC AND PRECOMPILE_HEADERS_WITH_MSVC)
         <vector>
     )
 endif()
-
-add_definitions(-DMYGUI_DONT_USE_OBSOLETE=ON)
 
 if (ANDROID)
     target_link_libraries(openmw-lib EGL android log z)

@@ -1,9 +1,5 @@
 #include "localscripts.hpp"
 
-#include <components/esm3/loadcell.hpp>
-#include <components/esm3/loadweap.hpp>
-#include <components/misc/strings/lower.hpp>
-
 #include "../mwbase/environment.hpp"
 #include "../mwbase/mechanicsmanager.hpp"
 #include "../mwmechanics/aicombat.hpp"
@@ -20,6 +16,7 @@
 #include "../mwworld/ptr.hpp"
 
 #include "context.hpp"
+#include "luamanagerimp.hpp"
 
 namespace sol
 {
@@ -35,6 +32,20 @@ namespace sol
 
 namespace MWLua
 {
+    void SelfObject::cacheStat(LuaManager& manager, SelfObject::CachedStat key, sol::main_object value)
+    {
+        if (mStatsCache.empty())
+        {
+            manager.addAction(
+                [obj = Object(*this)] {
+                    LocalScripts* scripts = obj.ptr().getRefData().getLuaScripts();
+                    if (scripts)
+                        scripts->applyStatsCache();
+                },
+                "StatUpdateAction");
+        }
+        mStatsCache[std::move(key)] = std::move(value);
+    }
 
     void LocalScripts::initializeSelfPackage(const Context& context)
     {
@@ -55,7 +66,7 @@ namespace MWLua
         controls["run"] = CONTROL(bool, mRun);
         controls["sneak"] = CONTROL(bool, mSneak);
         controls["jump"] = CONTROL(bool, mJump);
-        controls["use"] = CONTROL(int, mUse);
+        controls["use"] = CONTROL(MWMechanics::AttackType, mUse);
 #undef CONTROL
 
         sol::usertype<SelfObject> selfAPI
@@ -64,7 +75,7 @@ namespace MWLua
             = [](SelfObject& self) { return "openmw.self[" + self.toString() + "]"; };
         selfAPI["object"] = sol::readonly_property([](SelfObject& self) -> LObject { return LObject(self); });
         selfAPI["controls"] = sol::readonly_property([](SelfObject& self) { return &self.mControls; });
-        selfAPI["isActive"] = [](SelfObject& self) { return &self.mIsActive; };
+        selfAPI["isActive"] = [](SelfObject& self) -> bool { return self.mIsActive; };
         selfAPI["enableAI"] = [](SelfObject& self, bool v) { self.mControls.mDisableAI = !v; };
         selfAPI["ATTACK_TYPE"]
             = LuaUtil::makeStrictReadOnly(LuaUtil::tableFromPairs<std::string_view, MWMechanics::AttackType>(lua,
@@ -174,34 +185,25 @@ namespace MWLua
                                         float duration, const osg::Vec3f& dest, bool repeat, bool cancelOther) {
             const MWWorld::Ptr& ptr = self.ptr();
             MWMechanics::AiSequence& ai = ptr.getClass().getCreatureStats(ptr).getAiSequence();
+            std::string_view cellNameId;
             if (cell)
-            {
-                ai.stack(MWMechanics::AiFollow(target.ptr().getCellRef().getRefId(),
-                             cell->mStore->getCell()->getNameId(), duration, dest.x(), dest.y(), dest.z(), repeat),
-                    ptr, cancelOther);
-            }
-            else
-            {
-                ai.stack(MWMechanics::AiFollow(
-                             target.ptr().getCellRef().getRefId(), duration, dest.x(), dest.y(), dest.z(), repeat),
-                    ptr, cancelOther);
-            }
+                cellNameId = cell->mStore->getCell()->getNameId();
+            ai.stack(
+                MWMechanics::AiFollow(getId(target.ptr()), cellNameId, duration, dest.x(), dest.y(), dest.z(), repeat),
+                ptr, cancelOther);
         };
         selfAPI["_startAiEscort"] = [](SelfObject& self, const LObject& target, LCell cell, float duration,
                                         const osg::Vec3f& dest, bool repeat, bool cancelOther) {
             const MWWorld::Ptr& ptr = self.ptr();
             MWMechanics::AiSequence& ai = ptr.getClass().getCreatureStats(ptr).getAiSequence();
-            // TODO: change AiEscort implementation to accept ptr instead of a non-unique refId.
-            const ESM::RefId& refId = target.ptr().getCellRef().getRefId();
             int gameHoursDuration = static_cast<int>(std::ceil(duration / 3600.0));
             auto* esmCell = cell.mStore->getCell();
-            if (esmCell->isExterior())
-                ai.stack(MWMechanics::AiEscort(refId, gameHoursDuration, dest.x(), dest.y(), dest.z(), repeat), ptr,
-                    cancelOther);
-            else
-                ai.stack(MWMechanics::AiEscort(
-                             refId, esmCell->getNameId(), gameHoursDuration, dest.x(), dest.y(), dest.z(), repeat),
-                    ptr, cancelOther);
+            std::string_view cellNameId;
+            if (!esmCell->isExterior())
+                cellNameId = esmCell->getNameId();
+            ai.stack(MWMechanics::AiEscort(
+                         getId(target.ptr()), cellNameId, gameHoursDuration, dest.x(), dest.y(), dest.z(), repeat),
+                ptr, cancelOther);
         };
         selfAPI["_startAiWander"]
             = [](SelfObject& self, int distance, int duration, sol::table luaIdle, bool repeat, bool cancelOther) {
@@ -231,17 +233,20 @@ namespace MWLua
         lua->protectedCall(
             [&](LuaUtil::LuaView& view) { addPackage("openmw.self", sol::make_object(view.sol(), &mData)); });
         registerEngineHandlers({ &mOnActiveHandlers, &mOnInactiveHandlers, &mOnConsumeHandlers, &mOnActivatedHandlers,
-            &mOnTeleportedHandlers, &mOnAnimationTextKeyHandlers, &mOnPlayAnimationHandlers, &mOnSkillUse,
-            &mOnSkillLevelUp });
+            &mOnTeleportedHandlers, &mOnAnimationTextKeyHandlers, &mOnPlayAnimationHandlers, &mOnAnimationEndedHandlers,
+            &mOnSkillUse, &mOnSkillLevelUp, &mOnJailTimeServed });
     }
 
-    void LocalScripts::setActive(bool active)
+    void LocalScripts::setActive(bool active, bool callHandlers)
     {
         mData.mIsActive = active;
-        if (active)
-            callEngineHandlers(mOnActiveHandlers);
-        else
-            callEngineHandlers(mOnInactiveHandlers);
+        if (callHandlers)
+        {
+            if (active)
+                callEngineHandlers(mOnActiveHandlers);
+            else
+                callEngineHandlers(mOnInactiveHandlers);
+        }
     }
 
     void LocalScripts::applyStatsCache()

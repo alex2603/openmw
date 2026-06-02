@@ -12,6 +12,7 @@
 #include "../mwworld/esmstore.hpp"
 #include "../mwworld/worldimp.hpp"
 
+#include "context.hpp"
 #include "object.hpp"
 
 #include <stdexcept>
@@ -89,7 +90,7 @@ namespace MWLua
         }
         else if (varType == 's' || varType == 'l')
         {
-            MWBase::Environment::get().getWorld()->setGlobalInt(globalId, value);
+            MWBase::Environment::get().getWorld()->setGlobalInt(globalId, static_cast<int>(value));
         }
     }
 

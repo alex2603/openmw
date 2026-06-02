@@ -58,19 +58,17 @@ namespace ContentSelectorModel
         QStringList gameFiles() const;
         void setCurrentGameFile(const EsmFile* file);
 
+        bool isChecked(const EsmFile* file) const;
         bool isEnabled(const QModelIndex& index) const;
-        bool setCheckState(const QString& filepath, bool isChecked);
+        bool setCheckState(const EsmFile* file, bool isChecked);
         bool isNew(const QString& filepath) const;
-        void setNew(const QString& filepath, bool isChecked);
+        void setNew(const EsmFile* file, bool isChecked);
         void setNonUserContent(const QStringList& fileList);
-        void setContentList(const QStringList& fileList);
+        void setContentList(const QStringList& fileList, bool orderOnly = false);
         ContentFileList checkedItems() const;
         void uncheckAll();
 
-        void refreshModel();
-
-        /// Checks all plug-ins for load order errors and updates mPluginsWithLoadOrderError with plug-ins with issues
-        void checkForLoadOrderErrors();
+        void refreshModel(std::initializer_list<int> roles = {});
 
     private:
         void addFile(EsmFile* file);
@@ -89,7 +87,6 @@ namespace ContentSelectorModel
         QStringList mNonUserContent;
         std::set<const EsmFile*> mCheckedFiles;
         QHash<QString, bool> mNewFiles;
-        QSet<QString> mPluginsWithLoadOrderError;
         QString mEncoding;
         QIcon mWarningIcon;
         QIcon mErrorIcon;

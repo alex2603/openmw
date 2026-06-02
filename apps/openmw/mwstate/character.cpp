@@ -18,14 +18,25 @@ bool MWState::operator<(const Slot& left, const Slot& right)
     return left.mTimeStamp < right.mTimeStamp;
 }
 
-std::string MWState::getFirstGameFile(const std::vector<std::string>& contentFiles)
+bool MWState::operator<(const Character& left, const Character& right)
+{
+    if (left.mSlots.empty() && right.mSlots.empty())
+        return left.mPath < right.mPath;
+    else if (left.mSlots.empty())
+        return false;
+    else if (right.mSlots.empty())
+        return true;
+    return right.mSlots.back() < left.mSlots.back();
+}
+
+std::string_view MWState::getFirstGameFile(const std::vector<std::string>& contentFiles)
 {
     for (const std::string& c : contentFiles)
     {
         if (Misc::StringUtils::ciEndsWith(c, ".esm") || Misc::StringUtils::ciEndsWith(c, ".omwgame"))
             return c;
     }
-    return "";
+    return {};
 }
 
 void MWState::Character::addSlot(const std::filesystem::path& path, const std::string& game)
@@ -47,7 +58,7 @@ void MWState::Character::addSlot(const std::filesystem::path& path, const std::s
     if (!Misc::StringUtils::ciEqual(getFirstGameFile(slot.mProfile.mContentFiles), game))
         return; // this file is for a different game -> ignore
 
-    mSlots.push_back(slot);
+    mSlots.push_back(std::move(slot));
 }
 
 void MWState::Character::addSlot(const ESM::SavedGame& profile)
@@ -81,7 +92,7 @@ void MWState::Character::addSlot(const ESM::SavedGame& profile)
     slot.mProfile = profile;
     slot.mTimeStamp = std::filesystem::file_time_type::clock::now();
 
-    mSlots.push_back(slot);
+    mSlots.push_back(std::move(slot));
 }
 
 MWState::Character::Character(const std::filesystem::path& saves, const std::string& game)
@@ -163,7 +174,7 @@ const MWState::Slot* MWState::Character::updateSlot(const Slot* slot, const ESM:
 
     mSlots.erase(mSlots.begin() + index);
 
-    mSlots.push_back(newSlot);
+    mSlots.push_back(std::move(newSlot));
 
     return &mSlots.back();
 }

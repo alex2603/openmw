@@ -161,7 +161,7 @@ Options:
 		Build unit tests / Google test
 	-u
 		Configure for unity builds.
-	-v <2019/2022>
+	-v <2022/2026>
 		Choose the Visual Studio version to use.
 	-n
 		Produce NMake makefiles instead of a Visual Studio solution. Cannot be used with -N.
@@ -248,7 +248,7 @@ download() {
 		shift
 
 		if ! [ -f $FILE ]; then
-			printf "  Downloading $FILE... "
+			printf "  Downloading $FILE from $URL... "
 
 			if [ -z $VERBOSE ]; then
 				RET=0
@@ -366,26 +366,34 @@ if [ -z $PLATFORM ]; then
 fi
 
 if [ -z $VS_VERSION ]; then
-	VS_VERSION="2019"
+	VS_VERSION="2022"
 fi
 
 case $VS_VERSION in
+	18|18.0|2026 )
+		GENERATOR="Visual Studio 18 2026"
+		MSVC_REAL_VER="18"
+		MSVC_DISPLAY_YEAR="2026"
+
+		DEPS_MSVC_YEAR="2022"
+		QT_MSVC_YEAR="2019"
+
+		VCPKG_TRIPLET="x64-windows"
+		;;
 	17|17.0|2022 )
 		GENERATOR="Visual Studio 17 2022"
-		MSVC_TOOLSET="vc143"
 		MSVC_REAL_VER="17"
 		MSVC_DISPLAY_YEAR="2022"
 
+		DEPS_MSVC_YEAR="2022"
 		QT_MSVC_YEAR="2019"
+
+		VCPKG_TRIPLET="x64-windows"
 		;;
 
 	16|16.0|2019 )
-		GENERATOR="Visual Studio 16 2019"
-		MSVC_TOOLSET="vc142"
-		MSVC_REAL_VER="16"
-		MSVC_DISPLAY_YEAR="2019"
-
-		QT_MSVC_YEAR="2019"
+		echo "Visual Studio 2019 is no longer supported"
+		wrappedExit 1
 		;;
 
 	15|15.0|2017 )
@@ -526,9 +534,9 @@ fi
 
 if [ -n "$USE_CCACHE" ]; then
 	if [ -n "$NMAKE" ] || [ -n "$NINJA" ]; then
-		add_cmake_opts "-DCMAKE_C_COMPILER_LAUNCHER=ccache  -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DPRECOMPILE_HEADERS_WITH_MSVC=OFF"
+		add_cmake_opts "-DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
 	else
-		echo "Ignoring -C (CCache) as it is incompatible with Visual Studio CMake generators"
+		add_cmake_opts "-DOPENMW_MSBUILD_COMPILER_OVERRIDE=ccache"
 	fi
 fi
 
@@ -543,14 +551,16 @@ if [[ -n "$USE_CLANG_TIDY" ]]; then
   add_cmake_opts "-DCMAKE_CXX_CLANG_TIDY=\"clang-tidy --warnings-as-errors=*\""
 fi
 
-QT_VER='6.6.3'
+# these are defined in a separate file so its hash can be used as a CI cache key
+source "$(dirname -- "${BASH_SOURCE[0]}")/deps_versions.msvc.sh"
+
+# versions that don't affect the CI cache can go here
 AQT_VERSION='v3.1.15'
 
-VCPKG_TAG="2024-11-10"
-VCPKG_PATH="vcpkg-x64-${VS_VERSION:?}-${VCPKG_TAG:?}"
-VCPKG_PDB_PATH="vcpkg-x64-${VS_VERSION:?}-pdb-${VCPKG_TAG:?}"
-VCPKG_MANIFEST="${VCPKG_PATH:?}.txt"
-VCPKG_PDB_MANIFEST="${VCPKG_PDB_PATH:?}.txt"
+VCPKG_PATH="vcpkg-x64-windows-${DEPS_MSVC_YEAR:?}-${VCPKG_TAG:?}"
+VCPKG_PDB_PATH="vcpkg-x64-windows-${DEPS_MSVC_YEAR:?}-pdb-${VCPKG_TAG:?}"
+VCPKG_MANIFEST="${VCPKG_PATH:?}-manifest.txt"
+VCPKG_PDB_MANIFEST="${VCPKG_PDB_PATH:?}-manifest.txt"
 
 echo
 echo "==================================="
@@ -633,16 +643,16 @@ printf "vcpkg packages ${VCPKG_TAG:?}... "
 	fi
 
 	add_cmake_opts -DCMAKE_TOOLCHAIN_FILE="$(real_pwd)/${VCPKG_PATH:?}/scripts/buildsystems/vcpkg.cmake"
-	add_cmake_opts -DLuaJit_INCLUDE_DIR="$(real_pwd)/${VCPKG_PATH:?}/installed/x64-windows/include/luajit"
-	add_cmake_opts -DLuaJit_LIBRARY="$(real_pwd)/${VCPKG_PATH:?}/installed/x64-windows/lib/lua51.lib"
+	add_cmake_opts -DLuaJit_INCLUDE_DIR="$(real_pwd)/${VCPKG_PATH:?}/installed/${VCPKG_TRIPLET}/include/luajit"
+	add_cmake_opts -DLuaJit_LIBRARY="$(real_pwd)/${VCPKG_PATH:?}/installed/${VCPKG_TRIPLET}/lib/lua51.lib"
 
 	for CONFIGURATION in ${CONFIGURATIONS[@]}; do
 		if [[ ${CONFIGURATION:?} == "Debug" ]]; then
-			VCPKG_DLL_BIN="$(pwd)/${VCPKG_PATH:?}/installed/x64-windows/debug/bin"
+			VCPKG_DLL_BIN="$(pwd)/${VCPKG_PATH:?}/installed/${VCPKG_TRIPLET}/debug/bin"
 
 			add_runtime_dlls ${CONFIGURATION:?} "${VCPKG_DLL_BIN:?}/Debug/MyGUIEngine_d.dll"
 		else
-			VCPKG_DLL_BIN="$(pwd)/${VCPKG_PATH:?}/installed/x64-windows/bin"
+			VCPKG_DLL_BIN="$(pwd)/${VCPKG_PATH:?}/installed/${VCPKG_TRIPLET}/bin"
 
 			add_runtime_dlls ${CONFIGURATION:?} "${VCPKG_DLL_BIN:?}/Release/MyGUIEngine.dll"
 		fi
@@ -704,17 +714,12 @@ printf "Qt ${QT_VER}... "
 			DLLSUFFIX=""
 		fi
 
-		if [ "${QT_MAJOR_VER}" -eq 6 ]; then
-			add_runtime_dlls $CONFIGURATION "$(pwd)/bin/Qt${QT_MAJOR_VER}"{Core,Gui,Network,OpenGL,OpenGLWidgets,Widgets,Svg}${DLLSUFFIX}.dll
+		add_runtime_dlls $CONFIGURATION "$(pwd)/bin/Qt${QT_MAJOR_VER}"{Core,Gui,Network,OpenGL,OpenGLWidgets,Widgets,Svg}${DLLSUFFIX}.dll
 
-			# Since Qt 6.7.0 plugin is called "qmodernwindowsstyle"
-			if [ "${QT_MINOR_VER}" -ge 7 ]; then
-				add_qt_style_dlls $CONFIGURATION "$(pwd)/plugins/styles/qmodernwindowsstyle${DLLSUFFIX}.dll"
-			else
-				add_qt_style_dlls $CONFIGURATION "$(pwd)/plugins/styles/qwindowsvistastyle${DLLSUFFIX}.dll"
-			fi
+		# Since Qt 6.7.0 plugin is called "qmodernwindowsstyle"
+		if [ "${QT_MINOR_VER}" -ge 7 ]; then
+			add_qt_style_dlls $CONFIGURATION "$(pwd)/plugins/styles/qmodernwindowsstyle${DLLSUFFIX}.dll"
 		else
-			add_runtime_dlls $CONFIGURATION "$(pwd)/bin/Qt${QT_MAJOR_VER}"{Core,Gui,Network,OpenGL,Widgets,Svg}${DLLSUFFIX}.dll
 			add_qt_style_dlls $CONFIGURATION "$(pwd)/plugins/styles/qwindowsvistastyle${DLLSUFFIX}.dll"
 		fi
 
@@ -731,7 +736,9 @@ echo
 cd $DEPS_INSTALL/..
 echo
 echo "Setting up OpenMW build..."
-add_cmake_opts -DOPENMW_MP_BUILD=on
+if [[ -z "$USE_CCACHE" ]]; then
+	add_cmake_opts -DOPENMW_MP_BUILD=on
+fi
 add_cmake_opts -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}"
 add_cmake_opts -DOPENMW_USE_SYSTEM_SQLITE3=OFF
 add_cmake_opts -DOPENMW_USE_SYSTEM_YAML_CPP=OFF
@@ -853,13 +860,13 @@ if [ -n "$ACTIVATE_MSVC" ]; then
 		echo "vswhere was unable to find MSVC $MSVC_DISPLAY_YEAR"
 		wrappedExit 1
 	fi
-	
+
 	echo "@\"${MSVC_INSTALLATION_PATH}\Common7\Tools\VsDevCmd.bat\" -no_logo -arch=$([ $BITS -eq 64 ] && echo "amd64" || echo "x86") -host_arch=$([ $(uname -m) == 'x86_64' ] && echo "amd64" || echo "x86")" > ActivateMSVC.bat
-	
+
 	cp "../CI/activate_msvc.sh" .
 	sed -i "s/\$MSVC_DISPLAY_YEAR/$MSVC_DISPLAY_YEAR/g" activate_msvc.sh
 	source ./activate_msvc.sh
-	
+
 	cp "../CI/ActivateMSVC.ps1" .
 	sed -i "s/\$MSVC_DISPLAY_YEAR/$MSVC_DISPLAY_YEAR/g" ActivateMSVC.ps1
 
@@ -912,7 +919,7 @@ if [ -n "$ACTIVATE_MSVC" ]; then
 			inheritEnvironments=msvc_x86
 		fi
 	fi
-	echo "In Visual Studio 15.3 (2017 Update 3) or later, try setting '\"inheritEnvironments\": [ \"$inheritEnvironments\" ]' in CMakeSettings.json to build in the IDE."
+	echo "In Visual Studio, try setting '\"inheritEnvironments\": [ \"$inheritEnvironments\" ]' in CMakeSettings.json to build in the IDE."
 fi
 
 wrappedExit $RET

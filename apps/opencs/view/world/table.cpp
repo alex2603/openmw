@@ -66,9 +66,8 @@ void CSVWorld::Table::contextMenuEvent(QContextMenuEvent* event)
 
     int currentRow = rowAt(event->y());
     int currentColumn = columnAt(event->x());
-    if (mEditIdAction->isValidIdCell(currentRow, currentColumn))
+    if (mEditIdAction->setCell(currentRow, currentColumn))
     {
-        mEditIdAction->setCell(currentRow, currentColumn);
         menu.addAction(mEditIdAction);
         menu.addSeparator();
     }
@@ -412,7 +411,7 @@ CSVWorld::Table::Table(const CSMWorld::UniversalId& id, bool createAndDelete, bo
     CSMPrefs::Shortcut* extendedRevertShortcut = new CSMPrefs::Shortcut("table-extendedrevert", this);
     extendedRevertShortcut->associateAction(mExtendedRevertAction);
 
-    mEditIdAction = new TableEditIdAction(*this, this);
+    mEditIdAction = new TableEditIdAction(*this, mDocument.getData(), this);
     connect(mEditIdAction, &QAction::triggered, this, &Table::editCell);
     addAction(mEditIdAction);
 
@@ -592,7 +591,7 @@ void CSVWorld::Table::moveRecords(QDropEvent* event)
     if (mEditLock || (mModel->getFeatures() & CSMWorld::IdTableBase::Feature_Constant))
         return;
 
-    QModelIndex targedIndex = indexAt(event->pos());
+    QModelIndex targedIndex = indexAt(event->position().toPoint());
 
     QModelIndexList selectedRows = selectionModel()->selectedRows();
     int targetRowRaw = targedIndex.row();
@@ -872,7 +871,7 @@ void CSVWorld::Table::mouseMoveEvent(QMouseEvent* event)
 {
     if (event->buttons() & Qt::LeftButton)
     {
-        startDragFromTable(*this, indexAt(event->pos()));
+        startDragFromTable(*this, indexAt(event->position().toPoint()));
     }
 }
 

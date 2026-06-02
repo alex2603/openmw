@@ -23,14 +23,14 @@ opencs_units (model/world
 
 
 opencs_units (model/world
-    universalid record commands columnbase columnimp scriptcontext cell refidcollection
+    universalid commands columnbase columnimp scriptcontext refidcollection
     refiddata refidadapterimp ref collectionbase refcollection columns infocollection tablemimedata cellcoordinates cellselection resources resourcesmanager scope
-    pathgrid land nestedtablewrapper nestedcollection nestedcoladapterimp nestedinfocollection
+    pathgrid land nestedcollection nestedcoladapterimp nestedinfocollection
     idcompletionmanager metadata defaultgmsts infoselectwrapper commandmacro
     )
 
 opencs_hdrs (model/world
-    columnimp disabletag idcollection collection info subcellcollection
+    columnimp disabletag idcollection collection info subcellcollection cell nestedtablewrapper record
     )
 
 
@@ -52,7 +52,7 @@ opencs_hdrs (model/tools
 
 opencs_units (view/doc
     viewmanager view operations operation subview startup filedialog newgame
-    filewidget adjusterwidget loader globaldebugprofilemenu runlogsubview sizehint
+    filewidget adjusterwidget loader globaldebugprofilemenu runlogsubview
     )
 
 
@@ -61,7 +61,7 @@ opencs_units (view/doc
     )
 
 opencs_hdrs (view/doc
-    subviewfactoryimp
+    subviewfactoryimp sizehint
     )
 
 
@@ -80,7 +80,7 @@ opencs_units (view/world
     )
 
 opencs_units (view/widget
-    scenetoolbar scenetool scenetoolmode pushbutton scenetooltoggle scenetoolrun modebutton
+    scenetoolbar scenetool scenetoolmode pushbutton scenetooltoggle scenetoolrun modebutton scenetoolvertexpaintbrush
     scenetooltoggle2 scenetooltexturebrush scenetoolshapebrush completerpopup coloreditor colorpickerpopup droplineedit
     )
 
@@ -88,16 +88,15 @@ opencs_units (view/render
     scenewidget worldspacewidget pagedworldspacewidget unpagedworldspacewidget
     previewwidget editmode instancemode instanceselectionmode instancemovemode
     orbitcameramode pathgridmode selectionmode pathgridselectionmode cameracontroller
-    cellwater terraintexturemode actor terrainselection terrainshapemode brushdraw commands
+    cellwater terraintexturemode terrainvertexpaintmode actor terrainselection terrainshapemode brushdraw commands objectmarker
     )
 
 opencs_units (view/render
-    lighting lightingday lightingnight lightingbright object cell terrainstorage tagbase
-    cellarrow cellmarker cellborder pathgrid
+    object cell terrainstorage cellarrow cellmarker cellborder pathgrid
     )
 
 opencs_hdrs (view/render
-    mask
+    mask tagbase
     )
 
 
@@ -123,7 +122,11 @@ opencs_units (model/prefs
     )
 
 opencs_units (model/filter
-    unarynode narynode leafnode booleannode parser andnode ornode notnode textnode valuenode
+    unarynode narynode parser andnode ornode notnode textnode valuenode
+    )
+
+opencs_hdrs (model/filter
+    leafnode booleannode
     )
 
 opencs_units (view/filter
@@ -240,14 +243,10 @@ target_link_libraries(openmw-cs-lib
     components_qt
 )
 
-if (QT_VERSION_MAJOR VERSION_EQUAL 6)
-    target_link_libraries(openmw-cs-lib Qt::Widgets Qt::Core Qt::Network Qt::OpenGL Qt::OpenGLWidgets Qt::Svg)
-else()
-    target_link_libraries(openmw-cs-lib Qt::Widgets Qt::Core Qt::Network Qt::OpenGL Qt::Svg)
-endif()
+target_link_libraries(openmw-cs-lib Qt::Widgets Qt::Core Qt::Network Qt::OpenGL Qt::OpenGLWidgets Qt::Svg)
 
 if (WIN32)
-    target_sources(openmw-cs PRIVATE ${CMAKE_SOURCE_DIR}/files/windows/openmw-cs.exe.manifest)
+    target_sources(openmw-cs PRIVATE ${CMAKE_SOURCE_DIR}/files/windows/other-apps.manifest)
 endif()
 
 if (WIN32 AND BUILD_OPENCS)

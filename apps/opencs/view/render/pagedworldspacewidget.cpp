@@ -42,6 +42,7 @@
 #include "mask.hpp"
 #include "terrainshapemode.hpp"
 #include "terraintexturemode.hpp"
+#include "terrainvertexpaintmode.hpp"
 
 class QWidget;
 
@@ -86,8 +87,8 @@ bool CSVRender::PagedWorldspaceWidget::adjustCells()
                 {
                     modified = true;
 
-                    auto cell
-                        = std::make_unique<Cell>(mDocument, mRootNode, iter->first.getId(mWorldspace), deleted, true);
+                    auto cell = std::make_unique<Cell>(getDocument(), mSelectionMarker.get(), mRootNode,
+                        iter->first.getId(mWorldspace), deleted, true);
 
                     delete iter->second;
                     iter->second = cell.release();
@@ -170,9 +171,8 @@ void CSVRender::PagedWorldspaceWidget::addEditModeSelectorButtons(CSVWidget::Sce
     /// \todo replace EditMode with suitable subclasses
     tool->addButton(new TerrainShapeMode(this, mRootNode, tool), "terrain-shape");
     tool->addButton(new TerrainTextureMode(this, mRootNode, tool), "terrain-texture");
-    const QIcon vertexIcon = Misc::ScalableIcon::load(":scenetoolbar/editing-terrain-vertex-paint");
+    tool->addButton(new TerrainVertexPaintMode(this, mRootNode, tool), "terrain-vertex");
     const QIcon movementIcon = Misc::ScalableIcon::load(":scenetoolbar/editing-terrain-movement");
-    tool->addButton(new EditMode(this, vertexIcon, Mask_Reference, "Terrain vertex paint editing"), "terrain-vertex");
     tool->addButton(new EditMode(this, movementIcon, Mask_Reference, "Terrain movement"), "terrain-move");
 }
 
@@ -465,7 +465,8 @@ void CSVRender::PagedWorldspaceWidget::addCellToScene(const CSMWorld::CellCoordi
 
     bool deleted = index == -1 || cells.getRecord(index).mState == CSMWorld::RecordBase::State_Deleted;
 
-    auto cell = std::make_unique<Cell>(mDocument, mRootNode, coordinates.getId(mWorldspace), deleted, true);
+    auto cell = std::make_unique<Cell>(
+        getDocument(), mSelectionMarker.get(), mRootNode, coordinates.getId(mWorldspace), deleted, true);
     EditMode* editMode = getEditMode();
     cell->setSubMode(editMode->getSubMode(), editMode->getInteractionMask());
 
@@ -718,10 +719,10 @@ bool CSVRender::PagedWorldspaceWidget::handleDrop(
     return true;
 }
 
-CSVRender::WorldspaceWidget::dropRequirments CSVRender::PagedWorldspaceWidget::getDropRequirements(
+CSVRender::WorldspaceWidget::DropRequirements CSVRender::PagedWorldspaceWidget::getDropRequirements(
     CSVRender::WorldspaceWidget::DropType type) const
 {
-    dropRequirments requirements = WorldspaceWidget::getDropRequirements(type);
+    DropRequirements requirements = WorldspaceWidget::getDropRequirements(type);
 
     if (requirements != ignored)
         return requirements;
@@ -750,6 +751,7 @@ void CSVRender::PagedWorldspaceWidget::clearSelection(int elementMask)
         iter->second->setSelection(elementMask, Cell::Selection_Clear);
 
     flagAsModified();
+    mSelectionMarker->detachMarker();
 }
 
 void CSVRender::PagedWorldspaceWidget::invertSelection(int elementMask)
@@ -907,6 +909,7 @@ void CSVRender::PagedWorldspaceWidget::setSubMode(int subMode, unsigned int elem
 {
     for (std::map<CSMWorld::CellCoordinates, Cell*>::const_iterator iter = mCells.begin(); iter != mCells.end(); ++iter)
         iter->second->setSubMode(subMode, elementMask);
+    mSelectionMarker->updateSelectionMarker();
 }
 
 void CSVRender::PagedWorldspaceWidget::reset(unsigned int elementMask)
@@ -985,4 +988,13 @@ void CSVRender::PagedWorldspaceWidget::loadWestCell()
 void CSVRender::PagedWorldspaceWidget::loadSouthCell()
 {
     addCellToSceneFromCamera(0, -1);
+}
+
+CSVRender::Object* CSVRender::PagedWorldspaceWidget::getObjectByReferenceId(const std::string& referenceId)
+{
+    for (const auto& [_, cell] : mCells)
+        if (const auto& object = cell->getObjectByReferenceId(referenceId))
+            return object;
+
+    return nullptr;
 }

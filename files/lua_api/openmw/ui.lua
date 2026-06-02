@@ -1,6 +1,6 @@
 ---
--- `openmw.ui` controls user interface.
--- Can be used only by menu scripts and local scripts, that are attached to a player.
+-- Controls user interface.
+-- @context menu|player
 -- @module ui
 -- @usage
 -- local ui = require('openmw.ui')
@@ -94,6 +94,10 @@
 -- Creates a UI element from the given layout table
 -- @function [parent=#ui] create
 -- @param #Layout layout
+-- @param #table options Optional table, can take the following options:
+--
+--   * `noWarnUnused` - if set to true this element will never generate warnings about unused properties.
+--
 -- @return #Element
 
 ---

@@ -73,7 +73,7 @@ namespace SceneUtil
             linearAttenuation = linearMethod == 0 ? linearValue : 0.01f;
             float r = radius * linearRadiusMult;
             if (r > 0.f && (linearMethod == 1 || linearMethod == 2))
-                linearAttenuation = linearValue / std::pow(r, linearMethod);
+                linearAttenuation = linearValue / std::pow(r, static_cast<float>(linearMethod));
         }
 
         if (useQuadratic && (!outQuadInLin || isExterior))
@@ -81,7 +81,7 @@ namespace SceneUtil
             quadraticAttenuation = quadraticMethod == 0 ? quadraticValue : 0.01f;
             float r = radius * quadraticRadiusMult;
             if (r > 0.f && (quadraticMethod == 1 || quadraticMethod == 2))
-                quadraticAttenuation = quadraticValue / std::pow(r, quadraticMethod);
+                quadraticAttenuation = quadraticValue / std::pow(r, static_cast<float>(quadraticMethod));
         }
 
         // If the values are still nonsense, try to at least prevent UB and disable attenuation
@@ -119,7 +119,8 @@ namespace SceneUtil
         osg::ref_ptr<osg::Light> light(new osg::Light);
         lightSource->setNodeMask(lightMask);
 
-        float radius = esmLight.mRadius;
+        // The minimum scene light radius is 16 in Morrowind
+        const float radius = std::max(esmLight.mRadius, 16.f);
         lightSource->setRadius(radius);
 
         configureLight(light, radius, isExterior);

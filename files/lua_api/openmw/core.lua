@@ -1,66 +1,74 @@
 ---
--- `openmw.core` defines functions and types that are available in local,
--- global and menu scripts.
+-- Defines functions and types that are available in local, global, menu, and load scripts.
+-- @context global|menu|local|player|load
 -- @module core
 -- @usage local core = require('openmw.core')
 
 
 
 ---
--- The revision of OpenMW Lua API. It is an integer that is incremented every time the API is changed. See the actual value at the top of the page.
+-- The revision of OpenMW's Lua API. It is an integer that is incremented every time the API is changed. See the actual value at the top of the page.
 -- @field [parent=#core] #number API_REVISION
 
 ---
--- Terminates the game and quits to the OS. Should be used only for testing purposes.
+-- Terminates the game and quits to the OS. Should be used only for testing purposes. Not available in load scripts.
 -- @function [parent=#core] quit
 
 ---
--- Send an event to global scripts. Note: in menu scripts, errors if the game is not running (check @{openmw.menu#menu.getState})
+-- Send an event to global scripts. Note: in menu scripts, errors if the game is not running (check @{openmw.menu#menu.getState}.) Not available in load scripts.
 -- @function [parent=#core] sendGlobalEvent
 -- @param #string eventName
 -- @param eventData
 
 ---
 -- Simulation time in seconds.
--- The number of simulation seconds passed in the game world since starting a new game.
+-- The number of simulation seconds passed in the game world since starting a new game. Not available in load scripts.
 -- @function [parent=#core] getSimulationTime
 -- @return #number
 
 ---
--- The scale of simulation time relative to real time.
+-- The scale of simulation time relative to real time. Not available in load scripts.
 -- @function [parent=#core] getSimulationTimeScale
 -- @return #number
 
 ---
--- Game time in seconds.
+-- Game time in seconds. Not available in load scripts.
 -- @function [parent=#core] getGameTime
 -- @return #number
 
 ---
--- The scale of game time relative to simulation time.
+-- The scale of game time relative to simulation time. Not available in load scripts.
 -- @function [parent=#core] getGameTimeScale
 -- @return #number
 
 ---
--- Whether the world is paused (onUpdate doesn't work when the world is paused).
+-- Whether the world is paused. Not available in load scripts.
 -- @function [parent=#core] isWorldPaused
 -- @return #boolean
 
 ---
--- Real time in seconds; starting point is not fixed (can be time since last reboot), use only for measuring intervals. For Unix time use `os.time()`.
+-- Real time in seconds; starting point is not fixed (can be time since last reboot), use only for measuring intervals. For Unix time use `os.time()`. Not available in load scripts.
 -- @function [parent=#core] getRealTime
 -- @return #number
 
 ---
--- Frame duration in seconds. Not available in global scripts.
+-- Frame duration in seconds. Not available in global or load scripts.
 -- @function [parent=#core] getRealFrameDuration
 -- @return #number
 
 ---
--- Get a GMST setting from content files.
+-- Get a game setting with given name (from GMST ESM records or from openmw.cfg). Not available in load scripts.
 -- @function [parent=#core] getGMST
 -- @param #string setting Setting name
 -- @return #any
+-- @usage local skillBonus = core.getGMST('fMinorSkillBonus') -- get a numeric GMST from ESM data
+-- @usage local jailFormatString = core.getGMST('sNotifyMessage42') -- get a string GMST from ESM data
+-- @usage local bloodTextureName = core.getGMST('Blood_Texture_1') -- get a "fallback" parameter value from openmw.cfg (always a string)
+
+---
+-- The game's difficulty setting.
+-- @function [parent=#core] getGameDifficulty
+-- @return #number
 
 ---
 -- Return l10n formatting function for the given context.
@@ -152,12 +160,13 @@
 -- Player, actors, items, and statics are game objects.
 -- @type GameObject
 -- @extends #userdata
--- @field #string id A unique id of this object (not record id), can be used as a key in a table.
--- @field #string contentFile Lower cased file name of the content file that defines this object; nil for dynamically created objects.
+-- @field #string id The unique id of this object (not record id), can be used as a key in a table.
+-- @field #string contentFile Lowercase file name of the content file that defines this object; nil for dynamically created objects.
 -- @field #boolean enabled Whether the object is enabled or disabled. Global scripts can set the value. Items in containers or inventories can't be disabled.
 -- @field openmw.util#Vector3 position Object position.
 -- @field #number scale Object scale.
 -- @field openmw.util#Transform rotation Object rotation.
+-- @field #Cell startingCell The object's original cell. Returns nil if `cell` of the object is nil.
 -- @field openmw.util#Vector3 startingPosition The object original position
 -- @field openmw.util#Transform startingRotation The object original rotation
 -- @field #ObjectOwner owner Ownership information
@@ -166,7 +175,7 @@
 -- @field #any type Type of the object (one of the tables from the package @{openmw.types#types}).
 -- @field #number count Count (>1 means a stack of objects).
 -- @field #string recordId Returns record ID of the object in lowercase.
--- @field #string globalVariable Global Variable associated with this object(read only).
+-- @field #string globalVariable Global Variable associated with this object (read only).
 
 
 ---
@@ -185,7 +194,7 @@
 -- @return #boolean
 
 ---
--- Send local event to the object.
+-- Send a local event to the object.
 -- @function [parent=#GameObject] sendEvent
 -- @param self
 -- @param #string eventName
@@ -200,7 +209,7 @@
 -- object:activateBy(self)
 
 ---
--- Add new local script to the object.
+-- Add a new local script to the object.
 -- Can be called only from a global script. Script should be specified in a content
 -- file (omwgame/omwaddon/omwscripts) with a CUSTOM flag. Scripts can not be attached to Statics.
 -- @function [parent=#GameObject] addScript
@@ -231,26 +240,26 @@
 -- @param #number scale Scale desired in game.
 
 ---
--- Moves object to given cell and position.
+-- Moves the object to given cell and position.
 -- Can be called only from a global script.
 -- The effect is not immediate: the position will be updated only in the next
 -- frame. Can be called only from a global script. Enables object if it was disabled.
 -- Can be used to move objects from an inventory or a container to the world.
 -- @function [parent=#GameObject] teleport
 -- @param self
--- @param #any cellOrName A cell to define the destination worldspace; can be either #Cell, or cell name, or an empty string (empty string means the default exterior worldspace).
+-- @param #any cellOrName A cell to define the destination worldspace; can be either @{#Cell}, or cell name, or an empty string (empty string means the default exterior worldspace).
 -- If the worldspace has multiple cells (i.e. an exterior), the destination cell is calculated using `position`.
 -- @param openmw.util#Vector3 position New position.
 -- @param #TeleportOptions options (optional) Either table @{#TeleportOptions} or @{openmw.util#Transform} rotation.
 
 ---
--- Either table with options or @{openmw.util#Vector3} rotation.
+-- Either a table with options or a @{openmw.util#Vector3} rotation.
 -- @type TeleportOptions
 -- @field openmw.util#Transform rotation New rotation; if missing, then the current rotation is used.
 -- @field #boolean onGround If true, adjust destination position to the ground.
 
 ---
--- Moves object into a container or an inventory. Enables if was disabled.
+-- Moves an object into a container or an inventory. Enables if was disabled.
 -- Can be called only from a global script.
 -- @function [parent=#GameObject] moveInto
 -- @param self
@@ -292,16 +301,18 @@
 -- A cell of the game world.
 -- @type Cell
 -- @field #string name Name of the cell (can be empty string).
+-- @field #string displayName Human-readable cell name (takes into account *.cel file localizations). Can be an empty string.
 -- @field #string id Unique record ID of the cell, based on cell name for interiors and the worldspace for exteriors, or the formID of the cell for ESM4 cells.
--- @field #string region Region of the cell.
+-- @field #string region Region of the cell (can be nil).
 -- @field #boolean isExterior Whether the cell is an exterior cell. "Exterior" means grid of cells where the player can seamless walk from one cell to another without teleports. QuasiExterior (interior with sky) is not an exterior.
--- @field #boolean isQuasiExterior (DEPRECATED, use `hasTag("QuasiExterior")`) Whether the cell is a quasi exterior (like interior but with the sky and the wheather).
+-- @field #boolean isQuasiExterior (DEPRECATED, use `hasTag("QuasiExterior")`) Whether the cell is a quasi exterior (like interior but with the sky and the weather).
 -- @field #number gridX Index of the cell by X (only for exteriors).
 -- @field #number gridY Index of the cell by Y (only for exteriors).
--- @field #string worldSpaceId Id of the world space.
+-- @field #string worldSpaceId Id of the world space (can be nil).
 -- @field #boolean hasWater True if the cell contains water.
 -- @field #number waterLevel The water level of the cell. (nil if cell has no water).
 -- @field #boolean hasSky True if in this cell sky should be rendered.
+-- @field #PathGrid pathGrid The cell's @{#PathGrid} if it has one.
 
 ---
 -- Returns true if the cell has given tag.
@@ -335,6 +346,23 @@
 -- local weapons = cell:getAll(types.Weapon)
 
 ---
+-- A cell's path grid marking traversable paths.
+-- @type PathGrid
+
+---
+-- Get all points in this path grid.
+-- @function [parent=#PathGrid] getPoints
+-- @param self
+-- @return #list<#PathGridPoint> A list of @{#PathGridPoint}s.
+
+---
+-- A point in a cell's path grid.
+-- @type PathGridPoint
+-- @field #boolean autoGenerated True if this node was automatically generated in the editor.
+-- @field openmw.util#Vector3 relativePosition The point's position relative to the cell's origin. An exterior cell's origin is its southwest corner.
+-- @field #list<#PathGridPoint> connections A list of points connected to this point.
+
+---
 -- @type ActiveSpell
 -- @field #string name The spell or item display name
 -- @field #string id Record id of the spell or item used to cast the spell
@@ -344,7 +372,7 @@
 -- @field #boolean temporary If set, this spell effect is temporary and should end on its own. Either after a single application or after its duration has run out.
 -- @field #boolean affectsBaseValues If set, this spell affects the base values of affected stats, rather than modifying current values.
 -- @field #boolean stackable If set, this spell can be applied multiple times. If not set, the same spell can only be applied once from the same source (where source is determined by caster + item). In vanilla rules, consumables are stackable while spells and enchantments are not.
--- @field #number activeSpellId A number uniquely identifying this active spell within the affected actor's list of active spells.
+-- @field #string activeSpellId Uniquely identifies this active spell within the affected actor's list of active spells.
 -- @field #list<#ActiveSpellEffect> effects The active effects (@{#ActiveSpellEffect}) of this spell.
 
 ---
@@ -376,7 +404,8 @@
 -- @type Enchantment
 -- @field #string id Enchantment id
 -- @field #number type @{#EnchantmentType}
--- @field #boolean autocalcFlag If set, the casting cost should be computed based on the effect list rather than read from the cost field
+-- @field #boolean autocalcFlag (DEPRECATED, use isAutocalc) If set, the casting cost should be computed based on the effect list rather than read from the cost field
+-- @field #boolean isAutocalc If set, the casting cost should be computed based on the effect list rather than read from the cost field
 -- @field #number cost
 -- @field #number charge Charge capacity. Should not be confused with current charge.
 -- @field #list<#MagicEffectWithParams> effects The effects (@{#MagicEffectWithParams}) of the enchantment
@@ -401,14 +430,14 @@
 -- @type Inventory
 
 ---
--- The number of items with given recordId.
+-- The number of items with the given recordId.
 -- @function [parent=#Inventory] countOf
 -- @param self
 -- @param #string recordId
 -- @return #number
 
 ---
--- Get all items of given type from the inventory.
+-- Get all items of the given type from the inventory.
 -- @function [parent=#Inventory] getAll
 -- @param self
 -- @param type (optional) items type (see @{openmw.types#types})
@@ -421,7 +450,7 @@
 -- local weapons = playerInventory:getAll(types.Weapon)
 
 ---
--- Get first item with given recordId from the inventory. Returns nil if not found.
+-- Get first item with the given recordId from the inventory. Returns nil if not found.
 -- @function [parent=#Inventory] find
 -- @param self
 -- @param #string recordId
@@ -442,7 +471,7 @@
 -- @usage inventory:isResolved()
 
 ---
--- Get all items with given recordId from the inventory.
+-- Get all items with the given recordId from the inventory.
 -- @function [parent=#Inventory] findAll
 -- @param self
 -- @param #string recordId
@@ -450,7 +479,29 @@
 -- @usage for _, item in ipairs(inventory:findAll('common_shirt_01')) do ... end
 
 
---- @{#Magic}: spells and spell effects
+--- @{#Land}: Functions for interacting with land data. Not available in load scripts.
+-- @field [parent=#core] #Land land
+
+---
+-- Get the terrain height at a given location.
+-- @function [parent=#Land] getHeightAt
+-- @param openmw.util#Vector3 position
+-- @param #any cellOrId cell or cell id in their exterior world space to query
+-- @return #number
+
+---
+-- Get the terrain texture at a given location. As textures are blended and
+-- multiple textures can be at one specific position the texture whose center is
+-- closest to the position will be returned.
+--
+-- @function [parent=#Land] getTextureAt
+-- @param openmw.util#Vector3 position
+-- @param #any cellOrId cell or cell id in their exterior world space to query
+-- @return #nil, #string Texture path or nil if one isn't defined
+-- @return #nil, #string Plugin name or nil if failed to retrieve the texture
+
+
+--- @{#Magic}: spells and spell effects. Not available in load scripts.
 -- @field [parent=#core] #Magic magic
 
 
@@ -628,6 +679,13 @@
 --- @{#Spells}: Spells
 -- @field [parent=#Magic] #Spells spells
 
+---
+-- Creates a @{#Spell} without adding it to the world database.
+-- Use @{openmw_world#(world).createRecord} to add the record to the world.
+-- @function [parent=#Spells] createRecordDraft
+-- @param #Spell spell A Lua table with the fields of a Spell, with an optional field `template` that accepts a @{#Spell} as a base.
+-- @return #Spell A strongly typed Spell record.
+
 --- List of all @{#Spell}s.
 -- @field [parent=#Spells] #list<#Spell> records A read-only list of all @{#Spell} records in the world database, may be indexed by recordId.
 -- Implements [iterables#List](iterables.html#List) of #Spell.
@@ -635,7 +693,7 @@
 -- @usage local spell = core.magic.spells.records[1]  -- get by index
 -- @usage -- Print all powers
 -- for _, spell in pairs(core.magic.spells.records) do
---     if spell.types == core.magic.SPELL_TYPE.Power then
+--     if spell.type == core.magic.SPELL_TYPE.Power then
 --         print(spell.name)
 --     end
 -- end
@@ -657,6 +715,13 @@
 
 --- @{#Enchantments}: Enchantments
 -- @field [parent=#Magic] #Enchantments enchantments
+
+---
+-- Creates an @{#Enchantment} without adding it to the world database.
+-- Use @{openmw_world#(world).createRecord} to add the record to the world.
+-- @function [parent=#Enchantments] createRecordDraft
+-- @param #Enchantment enchantment A Lua table with the fields of an Enchantment, with an optional field `template` that accepts an @{#Enchantment} as a base.
+-- @return #Enchantment A strongly typed Enchantment record.
 
 --- A read-only list of all @{#Enchantment} records in the world database, may be indexed by recordId.
 -- Implements [iterables#List](iterables.html#List) and [iterables#Map](iterables.html#map-iterable) of #Enchantment.
@@ -680,13 +745,15 @@
 -- @field #list<#MagicEffectWithParams> effects The effects (@{#MagicEffectWithParams}) of the spell
 -- @field #boolean alwaysSucceedFlag If set, the spell should ignore skill checks and always succeed.
 -- @field #boolean starterSpellFlag If set, the spell can be selected as a player's starting spell.
--- @field #boolean autocalcFlag If set, the casting cost should be computed based on the effect list rather than read from the cost field
+-- @field #boolean autocalcFlag (DEPRECATED, use isAutocalc) If set, the casting cost should be computed based on the effect list rather than read from the cost field
+-- @field #boolean isAutocalc If set, the casting cost should be computed based on the effect list rather than read from the cost field
 
 ---
 -- @type MagicEffect
 -- @field #string id Effect ID
 -- @field #string icon Effect Icon Path
 -- @field #string name Localized name of the effect
+-- @field #string description Localized description of the effect
 -- @field #string school Skill ID that is this effect's school
 -- @field #number baseCost
 -- @field openmw.util#Color color
@@ -706,6 +773,16 @@
 -- @field #string hitSound Identifier of the sound used on hit
 -- @field #string areaSound Identifier of the sound used for AOE spells
 -- @field #string boltSound Identifier of the projectile sound used for ranged spells
+-- @field #boolean hasAttribute True if the effect requires an attribute parameter
+-- @field #boolean hasSkill True if the effect requires a skill parameter
+-- @field #boolean onSelf True if the effect can be cast on self
+-- @field #boolean onTouch True if the effect can be cast on touch
+-- @field #boolean onTarget True if the effect can be cast on target
+-- @field #boolean unreflectable True if the effect cannot be reflected
+-- @field #boolean allowsSpellmaking True if the effect is available for spellmaking
+-- @field #boolean allowsEnchanting True if the effect is available for enchanting
+-- @field #boolean negativeLight True if the effect casts negative light
+-- @field #number speed Projectile speed
 
 
 ---
@@ -728,11 +805,11 @@
 -- @field #string affectedAttribute Optional attribute ID
 -- @field #string id Effect id string
 -- @field #string name Localized name of the effect
--- @field #number magnitude current magnitude of the effect. Will be set to 0 when effect is removed or expires.
+-- @field #number magnitude Current magnitude of the effect. Will be set to 0 when the effect is removed or expires.
 -- @field #number magnitudeBase
 -- @field #number magnitudeModifier
 
---- @{#Sound}: Sounds and Speech
+--- @{#Sound}: Sounds and Speech. Not available in load scripts.
 -- @field [parent=#core] #Sound sound
 
 ---
@@ -756,7 +833,7 @@
 --   * `pitch` - a floating point number >= 0, to set a sound pitch (default: 1);
 --   * `loop` - a boolean, to set if sound should be repeated when it ends (default: false);
 -- @usage local params = {
---    timeOffset=0.1
+--    timeOffset=0.1,
 --    volume=0.3,
 --    loop=false,
 --    pitch=1.0
@@ -777,7 +854,7 @@
 --   * `pitch` - a floating point number >= 0, to set a sound pitch (default: 1);
 --   * `loop` - a boolean, to set if sound should be repeated when it ends (default: false);
 -- @usage local params = {
---    timeOffset=0.1
+--    timeOffset=0.1,
 --    volume=0.3,
 --    loop=false,
 --    pitch=1.0
@@ -803,7 +880,7 @@
 -- @usage core.sound.stopSoundFile("Sound\\test.mp3", object);
 
 ---
--- Check if sound is playing on given object
+-- Check if a sound is playing on the given object
 -- @function [parent=#Sound] isSoundPlaying
 -- @param #string soundId ID of Sound record to check
 -- @param #GameObject object Object on which we want to check sound
@@ -811,7 +888,7 @@
 -- @usage local isPlaying = core.sound.isSoundPlaying("shock bolt", object);
 
 ---
--- Check if sound file is playing on given object
+-- Check if a sound file is playing on the given object
 -- @function [parent=#Sound] isSoundFilePlaying
 -- @param #string fileName Path to sound file in VFS
 -- @param #GameObject object Object on which we want to check sound
@@ -864,7 +941,7 @@
 --     print(sound.fileName)
 -- end
 
---- @{#Stats}: stats
+--- @{#Stats}: stats. Not available in load scripts.
 -- @field [parent=#core] #Stats stats
 
 
@@ -927,7 +1004,7 @@
 -- @field #string failureSound VFS path to the failure sound
 -- @field #string hitSound VFS path to the hit sound
 
---- @{#Dialogue}: Dialogue
+--- @{#Dialogue}: Dialogue. Not available in load scripts.
 -- @field [parent=#core] #Dialogue dialogue
 
 ---
@@ -1030,7 +1107,7 @@
 -- local bb = core.dialogue.voice.records['flee'].infos[149].sound
 
 ---
--- Quest stage (same as in @{openmw_types#PlayerQuest.stage}) this info entry is associated with.
+-- Quest stage (same as in @{openmw_types#PLAYERQuest.stage}) this info entry is associated with.
 -- Non-nil only for journal records.
 -- @field [parent=#DialogueRecordInfo] #number questStage
 
@@ -1114,7 +1191,179 @@
 -- Always nil for journal records or if there is no value set.
 -- @field [parent=#DialogueRecordInfo] #string resultScript
 
---- @{#Factions}: Factions
+---
+-- A read-only list of @{#DialogueInfoCondition}s.
+-- Always nil for journal records.
+-- @field [parent=#DialogueRecordInfo] #list<#DialogueInfoCondition> conditions
+
+---
+-- @type DialogueInfoCondition
+-- @field #DialogueConditionOperator operator The #{#DialogueConditionOperator} to use in the comparison
+-- @field #DialogueConditionType type The condition's @{#DialogueConditionType}
+-- @field #number value The value to compare to
+-- @field #string recordId The record ID to use in the comparison
+-- @field #string variableName The name of the global or local mwscript variable to compare to
+-- @field #string cellName The cell name to compare to
+
+--- Possible @{#DialogueConditionOperator} values
+-- @field [parent=#Dialogue] #DialogueConditionOperator CONDITION_OPERATOR
+
+--- `core.dialogue.CONDITION_OPERATOR`
+-- @type DialogueConditionOperator
+-- @field #number Equal ==
+-- @field #number NotEqual !=
+-- @field #number Greater >
+-- @field #number GreaterEqual >=
+-- @field #number Less <
+-- @field #number LessEqual <=
+
+--- Possible @{#DialogueConditionType} values
+-- @field [parent=#Dialogue] #DialogueConditionType CONDITION_TYPE
+
+--- `core.dialogue.CONDITION_TYPE`
+-- @type DialogueConditionType
+-- @field #number FacReactionLowest Lowest faction reaction from the speaker's primary faction to the player's factions
+-- @field #number FacReactionHighest Highest faction reaction from the speaker's primary faction to the player's factions
+-- @field #number RankRequirement Check whether the player can advance in the speaker's primary faction
+-- @field #number Reputation The speaker's reputation
+-- @field #number HealthPercent The speaker's health percentage
+-- @field #number PcReputation The player's reputation
+-- @field #number PcLevel The player's level
+-- @field #number PcHealthPercent The player's health percentage
+-- @field #number PcMagicka The player's current magicka
+-- @field #number PcFatigue The player's current fatigue
+-- @field #number PcStrength The player's current strength
+-- @field #number PcBlock The player's current block
+-- @field #number PcArmorer The player's current armorer
+-- @field #number PcMediumArmor The player's current medium armor
+-- @field #number PcHeavyArmor The player's current heavy armor
+-- @field #number PcBluntWeapon The player's current blunt weapon
+-- @field #number PcLongBlade The player's current long blade
+-- @field #number PcAxe The player's current axe
+-- @field #number PcSpear The player's current spear
+-- @field #number PcAthletics The player's current athletics
+-- @field #number PcEnchant The player's current enchant
+-- @field #number PcDestruction The player's current destruction
+-- @field #number PcAlteration The player's current alteration
+-- @field #number PcIllusion The player's current illusion
+-- @field #number PcConjuration The player's current conjuration
+-- @field #number PcMysticism The player's current mysticism
+-- @field #number PcRestoration The player's current restoration
+-- @field #number PcAlchemy The player's current alchemy
+-- @field #number PcUnarmored The player's current unarmored
+-- @field #number PcSecurity The player's current security
+-- @field #number PcSneak The player's current sneak
+-- @field #number PcAcrobatics The player's current acrobatics
+-- @field #number PcLightArmor The player's current light armor
+-- @field #number PcShortBlade The player's current short blade
+-- @field #number PcMarksman The player's current marksman
+-- @field #number PcMercantile The player's current mercantile
+-- @field #number PcSpeechcraft The player's current speechcraft
+-- @field #number PcHandToHand The player's current hand to hand
+-- @field #number PcGender The player's gender
+-- @field #number PcExpelled Check whether the player has been expelled from the speaker's primary faction
+-- @field #number PcCommonDisease Check if the player has a common disease
+-- @field #number PcBlightDisease Check if the player has a blight disease
+-- @field #number PcClothingModifier Check the combined value of the player's outfit
+-- @field #number PcCrimeLevel The player's bounty
+-- @field #number SameGender Check if the speaker's gender matches the player's
+-- @field #number SameRace Check if the speaker's race matches the player's
+-- @field #number SameFaction Check if the player is a member of the speaker's primary faction
+-- @field #number FactionRankDifference The difference between the player's rank in the speaker's primary faction and the speaker's
+-- @field #number Detected Whether the speaker has detected the player
+-- @field #number Alarmed Whether the speaker was alarmed by the player's crime
+-- @field #number Choice The choice index
+-- @field #number PcIntelligence The player's current intelligence
+-- @field #number PcWillpower The player's current willpower
+-- @field #number PcAgility The player's current agility
+-- @field #number PcSpeed The player's current speed
+-- @field #number PcEndurance The player's current endurance
+-- @field #number PcPersonality The player's current personality
+-- @field #number PcLuck The player's current luck
+-- @field #number PcCorprus Whether the player is affected by the Corprus magic effect
+-- @field #number Weather Checks the scriptId of the weather in the player's cell
+-- @field #number PcVampire Whether the player is affected by the Vampirism magic effect
+-- @field #number Level The speaker's level
+-- @field #number Attacked Whether the speaker was attacked
+-- @field #number TalkedToPc Whether the speaker has talked to the player before
+-- @field #number PcHealth The player's current health
+-- @field #number CreatureTarget Whether the speaker is targeting a creature
+-- @field #number FriendHit The number of times the player has hit the speaker follower
+-- @field #number Fight The speaker's current fight
+-- @field #number Hello The speaker's current hello
+-- @field #number Alarm The speaker's current alarm
+-- @field #number Flee The speaker's current flee
+-- @field #number ShouldAttack Whether the speaker would start combat with the player
+-- @field #number Werewolf Whether the speaker is in werewolf form
+-- @field #number PcWerewolfKills The number of werewolves killed by the player
+-- @field #number Global A comparison to the @{#DialogueInfoCondition.variableName} global variable
+-- @field #number Local A comparison to the speaker's @{#DialogueInfoCondition.variableName} local variable
+-- @field #number Journal A comparison to the player's @{#DialogueInfoCondition.recordId} journal index
+-- @field #number Item The number of copies of @{#DialogueInfoCondition.recordId} the player is carrying
+-- @field #number Dead The number of dead actors of the given @{#DialogueInfoCondition.recordId}
+-- @field #number NotId The speaker's recordId should not match @{#DialogueInfoCondition.recordId}
+-- @field #number NotFaction The speaker's faction ID should not match @{#DialogueInfoCondition.recordId}
+-- @field #number NotClass The speaker's class should not match @{#DialogueInfoCondition.recordId}
+-- @field #number NotRace The speaker's race should not match @{#DialogueInfoCondition.recordId}
+-- @field #number NotCell The player's cell name should not start with @{#DialogueInfoCondition.cellName}
+-- @field #number NotLocal A comparison to the speaker's @{#DialogueInfoCondition.variableName} local variable
+
+--- @{#Regions}: Regions. Not available in load scripts.
+-- @field [parent=#core] #Regions regions
+
+---
+-- A read-only list of all @{#RegionRecord}s in the world database.
+-- @field [parent=#Regions] #list<#RegionRecord> records
+-- @usage local record = core.regions.records['bitter coast region']
+-- @usage local record = core.regions.records[1]
+
+---
+-- Region data record
+-- @type RegionRecord
+-- @field #string id Region ID
+-- @field #string name Region display name
+-- @field openmw.util#Color mapColor Editor map color for this region.
+-- @field #string sleepList A leveled creature list used when sleeping outdoors in this region
+-- @field #list<#RegionSoundRef> sounds A read-only list of ambient sound references for this region.
+-- Each reference includes a chance and a resolved link to the full sound record.
+-- @field #table weatherProbabilities A table mapping @{#WeatherRecord.recordId}s to their probability (0–100), should sum to 100.
+-- Valid weather ids include:
+--   `"clear"`, `"cloudy"`, `"foggy"`, `"overcast"`, `"rain"`, `"thunderstorm"`, `"ashstorm"`, `"blight"`, `"snow"`, `"blizzard"`
+-- @usage print(region.weatherProbabilities["rain"])
+
+---
+-- Set one weather probability entry for this region at runtime.
+-- Throws an error if `weatherId` is not a valid weather id.
+-- Value is clamped to the range [0, 100].
+-- Multiple calls modify the current runtime weather table.
+-- Keep total weather probabilities at 100 after modifications.
+--
+-- For a full table replacement, zero the current table first, then set the new values.
+-- @function [parent=#RegionRecord] setProbability
+-- @param self
+-- @param #string weatherId Weather id to modify.
+-- @param #number value New probability value.
+-- @usage region:setProbability('rain', 30)
+-- @usage
+-- for weatherId, _ in pairs(region.weatherProbabilities) do
+--     region:setProbability(weatherId, 0)
+-- end
+-- region:setProbability('clear', 70)
+-- region:setProbability('rain', 30)
+
+---
+-- Reset this region's runtime weather probabilities to defaults from the loaded records.
+-- @function [parent=#RegionRecord] resetProbability
+-- @param self
+-- @usage region:resetProbability()
+
+---
+-- Region sound reference
+-- @type RegionSoundRef
+-- @field #string soundId Sound record ID
+-- @field #number chance Multiplicative percentage used to determine whether to play the sound
+
+--- @{#Factions}: Factions. Not available in load scripts.
 -- @field [parent=#core] #Factions factions
 
 ---
@@ -1141,6 +1390,141 @@
 -- @field #list<#number> attributeValues Attributes values required to get this rank.
 -- @field #number primarySkillValue Primary skill value required to get this rank.
 -- @field #number favouredSkillValue Secondary skill value required to get this rank.
--- @field #number factionReaction Reaction of faction members if player is in this faction.
+-- @field #number factionReputation Required amount of faction reputation to reach this rank.
+-- @field #number factionReaction (DEPRECATED) Returns the same as factionReputation.
+
+--- @{#MWScripts}: MWScripts. Not available in load scripts.
+-- @field [parent=#core] #MWScript mwscripts
+
+---
+-- A read-only list of all @{#MWScriptRecord}s in the world database.
+-- @field [parent=#MWScripts] #list<#MWScriptRecord> records
+-- @usage local record = core.mwscripts.records['example_recordid']
+-- @usage local record = core.mwscripts.records[1]
+
+---
+-- MWScript data record
+-- @type MWScriptRecord
+-- @field #string id MWScript id
+-- @field #string text MWScript content
+
+
+--- @{#Weather}: Weather. Not available in load scripts.
+-- @field [parent=#core] #Weather weather
+
+--- List of all @{#WeatherRecord}s.
+-- @field [parent=#Weather] #list<#WeatherRecord> records A read-only list of all @{#WeatherRecord}s in the world database, may be indexed by recordId.
+-- Implements [iterables#List](iterables.html#List) of #WeatherRecord.
+-- @usage local weather = core.weather.records['Cloudy']  -- get by id
+-- @usage local weather = core.weather.records[1]  -- get by index
+-- @usage -- Print all storms
+-- for _, weather in pairs(core.weather.records) do
+--     if weather.isStorm then
+--         print(weather.name)
+--     end
+-- end
+
+---
+-- Get the current weather
+-- @function [parent=#Weather] getCurrent
+-- @param #Cell cell The cell to get the current weather for
+-- @return #WeatherRecord Can be nil if the cell is inactive or has no weather
+
+---
+-- Get the next weather if any
+-- @function [parent=#Weather] getNext
+-- @param #Cell cell The cell to get the next weather for
+-- @return #WeatherRecord Can be nil
+
+---
+-- Get current weather transition value
+-- @function [parent=#Weather] getTransition
+-- @param #Cell cell The cell to get the transition value for
+-- @return #number Can be nil if the cell is inactive or has no weather
+
+---
+-- Change the weather
+-- @function [parent=#Weather] changeWeather
+-- @param #string regionId
+-- @param #WeatherRecord weather The weather to change to
+
+---
+-- Get the current direction of the light of the sun.
+-- @function [parent=#Weather] getCurrentSunLightDirection
+-- @param #Cell cell The cell to get the sun direction for
+-- @return openmw.util#Vector4 Can be nil if the cell is inactive
+
+---
+-- Get the current sun visibility taking weather transition into account.
+-- @function [parent=#Weather] getCurrentSunVisibility
+-- @param #Cell cell The cell to get the sun visibility for
+-- @return #number Can be nil if the cell is inactive or has no weather
+
+---
+-- Get the current sun percentage taking weather transition into account.
+-- @function [parent=#Weather] getCurrentSunPercentage
+-- @param #Cell cell The cell to get the sun percentage for
+-- @return #number Can be nil if the cell is inactive or has no weather
+
+---
+-- Get the current wind speed taking weather transition into account.
+-- @function [parent=#Weather] getCurrentWindSpeed
+-- @param #Cell cell The cell to get the wind speed for
+-- @return #number Can be nil if the cell is inactive or has no weather
+
+---
+-- Get the current storm direction taking weather transition into account.
+-- @function [parent=#Weather] getCurrentStormDirection
+-- @param #Cell cell The cell to get the storm direction for
+-- @return openmw.util#Vector3 Can be nil if the cell is inactive or has no weather
+
+---
+-- Weather data
+-- @type WeatherRecord
+-- @field #string recordId
+-- @field #number scriptId Read-only ID used in mwscript and dialogue
+-- @field #string name Read-only weather name
+-- @field #number windSpeed Affects the angle of falling rain
+-- @field #number cloudSpeed
+-- @field #string cloudTexture
+-- @field #number cloudsMaximumPercent Affects the speed of weather transitions (0, 1]
+-- @field #boolean isStorm Controls whether the weather is considered a storm for animation and movement purposes
+-- @field openmw.util#Vector3 stormDirection
+-- @field #number glareView Strength of the sun glare [0, 1]
+-- @field #number rainSpeed The speed at which rain falls
+-- @field #number rainEntranceSpeed The number of seconds between rain particle batches being created
+-- @field #string rainEffect Will return nil if weather has no rainEffect
+-- @field #number rainMaxRaindrops The maximum number of rain particle batches to create every rainEntranceSpeed
+-- @field #number rainDiameter The area around the player to spawn rain in
+-- @field #number rainMaxHeight The maximum height relative to the player to spawn rain at
+-- @field #number rainMinHeight The minimum height relative to the player to spawn rain at
+-- @field #string rainLoopSoundID
+-- @field #table thunderSoundID A read-only array containing the recordIds of the thunder sounds
+-- @field #string ambientLoopSoundID
+-- @field #string particleEffect Will return nil if weather has no particleEffect
+-- @field #number distantLandFogFactor
+-- @field #number distantLandFogOffset
+-- @field openmw.util#Color sunDiscSunsetColor
+-- @field #TimeOfDayInterpolatorFloat landFogDepth
+-- @field #TimeOfDayInterpolatorColor skyColor
+-- @field #TimeOfDayInterpolatorColor ambientColor
+-- @field #TimeOfDayInterpolatorColor fogColor
+-- @field #TimeOfDayInterpolatorColor sunColor
+
+---
+-- Interpolates numbers for weathers based on time of day
+-- @type TimeOfDayInterpolatorFloat
+-- @field #number sunrise
+-- @field #number sunset
+-- @field #number day
+-- @field #number night
+
+---
+-- Interpolates colors for weathers based on time of day
+-- @type TimeOfDayInterpolatorColor
+-- @field openmw.util#Color sunrise
+-- @field openmw.util#Color sunset
+-- @field openmw.util#Color day
+-- @field openmw.util#Color night
 
 return nil

@@ -67,21 +67,6 @@
 
 namespace
 {
-    class MarkDrawablesVisitor : public osg::NodeVisitor
-    {
-    public:
-        MarkDrawablesVisitor(osg::Node::NodeMask mask)
-            : osg::NodeVisitor(TRAVERSE_ALL_CHILDREN)
-            , mMask(mask)
-        {
-        }
-
-        void apply(osg::Drawable& drawable) override { drawable.setNodeMask(mMask); }
-
-    private:
-        osg::Node::NodeMask mMask = 0;
-    };
-
     /// Removes all particle systems and related nodes in a subgraph.
     class RemoveParticlesVisitor : public osg::NodeVisitor
     {
@@ -516,7 +501,7 @@ namespace MWRender
         double duration = newTime - mStartingTime;
         mStartingTime = newTime;
 
-        mParams.mAnimTime->addTime(duration);
+        mParams.mAnimTime->addTime(static_cast<float>(duration));
         if (mParams.mAnimTime->getTime() >= mParams.mMaxControllerLength)
         {
             if (mParams.mLoop)
@@ -659,21 +644,21 @@ namespace MWRender
 
         path.replace(extensionStart, path.size() - extensionStart, "/");
 
+        constexpr VFS::Path::ExtensionView kf("kf");
         for (const VFS::Path::Normalized& name : mResourceSystem->getVFS()->getRecursiveDirectoryIterator(path))
-        {
-            if (Misc::getFileExtension(name) == "kf")
-            {
+            if (name.extension() == kf)
                 addSingleAnimSource(name, baseModel);
-            }
-        }
     }
 
     void Animation::addAnimSource(std::string_view model, const std::string& baseModel)
     {
+        constexpr VFS::Path::ExtensionView kf("kf");
+        constexpr VFS::Path::ExtensionView nif("nif");
+
         VFS::Path::Normalized kfname(model);
 
-        if (Misc::getFileExtension(kfname) == "nif")
-            kfname.changeExtension("kf");
+        if (kfname.extension() == nif)
+            kfname.changeExtension(kf);
 
         addSingleAnimSource(kfname, baseModel);
 
@@ -682,17 +667,19 @@ namespace MWRender
     }
 
     std::shared_ptr<Animation::AnimSource> Animation::addSingleAnimSource(
-        const std::string& kfname, const std::string& baseModel)
+        VFS::Path::NormalizedView kfname, const std::string& baseModel)
     {
         if (!mResourceSystem->getVFS()->exists(kfname))
             return nullptr;
 
-        auto animsrc = std::make_shared<AnimSource>();
-        animsrc->mKeyframes = mResourceSystem->getKeyframeManager()->get(VFS::Path::toNormalized(kfname));
+        osg::ref_ptr<const SceneUtil::KeyframeHolder> keyframes = mResourceSystem->getKeyframeManager()->get(kfname);
 
-        if (!animsrc->mKeyframes || animsrc->mKeyframes->mTextKeys.empty()
-            || animsrc->mKeyframes->mKeyframeControllers.empty())
+        if (keyframes == nullptr || keyframes->mTextKeys.empty() || keyframes->mKeyframeControllers.empty())
             return nullptr;
+
+        std::shared_ptr<AnimSource> animsrc = std::make_shared<AnimSource>();
+
+        animsrc->mKeyframes = std::move(keyframes);
 
         const NodeMap& nodeMap = getNodeMap();
         const auto& controllerMap = animsrc->mKeyframes->mKeyframeControllers;
@@ -722,6 +709,7 @@ namespace MWRender
 
         mAnimSources.push_back(animsrc);
 
+        mSupportedDirections.clear();
         for (const std::string& group : mAnimSources.back()->getTextKeys().getGroups())
             mSupportedAnimations.insert(group);
 
@@ -756,10 +744,12 @@ namespace MWRender
         // Get the blending rules
         if (Settings::game().mSmoothAnimTransitions)
         {
+            constexpr VFS::Path::ExtensionView yaml("yaml");
+
             // Note, even if the actual config is .json - we should send a .yaml path to AnimBlendRulesManager, the
             // manager will check for .json if it will not find a specified .yaml file.
             VFS::Path::Normalized blendConfigPath(kfname);
-            blendConfigPath.changeExtension("yaml");
+            blendConfigPath.changeExtension(yaml);
 
             // globalBlendConfigPath is only used with actors! Objects have no default blending.
             constexpr VFS::Path::NormalizedView globalBlendConfigPath("animations/animation-config.yaml");
@@ -795,6 +785,7 @@ namespace MWRender
         mAccumCtrl = nullptr;
 
         mSupportedAnimations.clear();
+        mSupportedDirections.clear();
         mAnimSources.clear();
 
         mAnimVelocities.clear();
@@ -917,7 +908,10 @@ namespace MWRender
         while (stateiter != mStates.end())
         {
             if (stateiter->second.mPriority == priority && stateiter->first != groupname)
-                mStates.erase(stateiter++);
+            {
+                animationEnded(stateiter->second);
+                stateiter = mStates.erase(stateiter);
+            }
             else
                 ++stateiter;
         }
@@ -945,6 +939,7 @@ namespace MWRender
                 state.mAutoDisable = autodisable;
                 state.mGroupname = groupname;
                 state.mStartKey = start;
+                state.mStopKey = stop;
                 mStates[std::string{ groupname }] = state;
 
                 if (state.mPlaying)
@@ -1115,8 +1110,8 @@ namespace MWRender
 
             return keyframeController->getAsCallback();
         }
-
-        return asCallback;
+        else
+            return asCallback;
     }
 
     void Animation::resetActiveGroups()
@@ -1221,7 +1216,7 @@ namespace MWRender
         return false;
     }
 
-    bool Animation::getInfo(std::string_view groupname, float* complete, float* speedmult, size_t* loopcount) const
+    bool Animation::getInfo(std::string_view groupname, float* complete, float* speedmult, uint32_t* loopcount) const
     {
         AnimStateMap::const_iterator iter = mStates.find(groupname);
         if (iter == mStates.end())
@@ -1237,11 +1232,7 @@ namespace MWRender
 
         if (complete)
         {
-            if (iter->second.mStopTime > iter->second.mStartTime)
-                *complete = (iter->second.getTime() - iter->second.mStartTime)
-                    / (iter->second.mStopTime - iter->second.mStartTime);
-            else
-                *complete = (iter->second.mPlaying ? 0.0f : 1.0f);
+            *complete = iter->second.getCompletion();
         }
         if (speedmult)
             *speedmult = iter->second.mSpeedMult;
@@ -1273,7 +1264,10 @@ namespace MWRender
     {
         AnimStateMap::iterator iter = mStates.find(groupname);
         if (iter != mStates.end())
+        {
+            animationEnded(iter->second);
             mStates.erase(iter);
+        }
         resetActiveGroups();
     }
 
@@ -1412,7 +1406,8 @@ namespace MWRender
 
             if (!state.mPlaying && state.mAutoDisable)
             {
-                mStates.erase(stateiter++);
+                animationEnded(stateiter->second);
+                stateiter = mStates.erase(stateiter);
 
                 resetActiveGroups();
             }
@@ -1695,7 +1690,7 @@ namespace MWRender
                 mGlowUpdater->setColor(color);
                 mGlowUpdater->setDuration(glowDuration);
             }
-            else
+            else if (mObjectRoot)
                 mGlowUpdater = SceneUtil::addEnchantedGlow(mObjectRoot, mResourceSystem, color, glowDuration);
         }
     }
@@ -1776,9 +1771,6 @@ namespace MWRender
 
         node->setNodeMask(Mask_Effect);
 
-        MarkDrawablesVisitor markVisitor(Mask_Effect);
-        node->accept(markVisitor);
-
         params.mMaxControllerLength = findMaxLengthVisitor.getMaxLength();
         params.mLoop = loop;
         params.mEffectId = effectId;
@@ -1793,7 +1785,7 @@ namespace MWRender
         // Notify that this animation has attached magic effects
         mHasMagicEffects = true;
 
-        overrideFirstRootTexture(texture, mResourceSystem, *node);
+        overrideFirstRootTexture(VFS::Path::toNormalized(texture), mResourceSystem, *node);
     }
 
     void Animation::removeEffect(std::string_view effectId)
@@ -1869,7 +1861,7 @@ namespace MWRender
 
     void Animation::setAlpha(float alpha)
     {
-        if (alpha == mAlpha)
+        if (alpha == mAlpha || !mObjectRoot)
             return;
         mAlpha = alpha;
 
@@ -2008,24 +2000,39 @@ namespace MWRender
             mInsert->removeChild(mObjectRoot);
     }
 
+    void Animation::animationEnded(AnimState& state) const
+    {
+        MWBase::Environment::get().getLuaManager()->animationEnded(
+            mPtr, state.mGroupname, state.getTime(), state.getCompletion(), state.mStartKey, state.mStopKey);
+    }
+
     MWWorld::MovementDirectionFlags Animation::getSupportedMovementDirections(
         std::span<const std::string_view> prefixes) const
     {
         MWWorld::MovementDirectionFlags result = 0;
-        for (const std::string_view animation : mSupportedAnimations)
+        for (const std::string_view prefix : prefixes)
         {
-            if (std::find_if(
-                    prefixes.begin(), prefixes.end(), [&](std::string_view v) { return animation.starts_with(v); })
-                == prefixes.end())
-                continue;
-            if (animation.ends_with("forward"))
-                result |= MWWorld::MovementDirectionFlag_Forward;
-            else if (animation.ends_with("back"))
-                result |= MWWorld::MovementDirectionFlag_Back;
-            else if (animation.ends_with("left"))
-                result |= MWWorld::MovementDirectionFlag_Left;
-            else if (animation.ends_with("right"))
-                result |= MWWorld::MovementDirectionFlag_Right;
+            auto it = std::find_if(mSupportedDirections.begin(), mSupportedDirections.end(),
+                [prefix](const auto& direction) { return direction.first == prefix; });
+            if (it == mSupportedDirections.end())
+            {
+                mSupportedDirections.emplace_back(prefix, 0);
+                it = mSupportedDirections.end() - 1;
+                for (const std::string_view animation : mSupportedAnimations)
+                {
+                    if (!animation.starts_with(prefix))
+                        continue;
+                    if (animation.ends_with("forward"))
+                        it->second |= MWWorld::MovementDirectionFlag_Forward;
+                    else if (animation.ends_with("back"))
+                        it->second |= MWWorld::MovementDirectionFlag_Back;
+                    else if (animation.ends_with("left"))
+                        it->second |= MWWorld::MovementDirectionFlag_Left;
+                    else if (animation.ends_with("right"))
+                        it->second |= MWWorld::MovementDirectionFlag_Right;
+                }
+            }
+            result |= it->second;
         }
         return result;
     }
@@ -2096,12 +2103,17 @@ namespace MWRender
         if (Settings::game().mGraphicHerbalism && ptr.getRefData().getCustomData() != nullptr
             && ObjectAnimation::canBeHarvested())
         {
-            const MWWorld::ContainerStore& store = ptr.getClass().getContainerStore(ptr);
-            if (!store.hasVisibleItems())
-            {
-                HarvestVisitor visitor;
-                mObjectRoot->accept(visitor);
-            }
+            harvest(ptr);
+        }
+    }
+
+    void ObjectAnimation::harvest(const MWWorld::Ptr& ptr)
+    {
+        const MWWorld::ContainerStore& store = ptr.getClass().getContainerStore(ptr);
+        if (!store.hasVisibleItems())
+        {
+            HarvestVisitor visitor;
+            mObjectRoot->accept(visitor);
         }
     }
 
@@ -2136,5 +2148,13 @@ namespace MWRender
                                     << ") parents";
             mNode->getParent(0)->removeChild(mNode);
         }
+    }
+
+    float Animation::AnimState::getCompletion() const
+    {
+        if (mStopTime > mStartTime)
+            return (getTime() - mStartTime) / (mStopTime - mStartTime);
+        else
+            return mPlaying ? 0.0f : 1.0f;
     }
 }

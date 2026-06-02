@@ -8,7 +8,9 @@
 #include <QList>
 #include <QMessageBox>
 #include <QPair>
+#include <QProgressDialog>
 #include <QPushButton>
+#include <QTimer>
 
 #include <algorithm>
 #include <mutex>
@@ -36,8 +38,6 @@
 
 #include "utils/profilescombobox.hpp"
 #include "utils/textinputdialog.hpp"
-
-#include "ui_directorypicker.h"
 
 const char* Launcher::DataFilesPage::mDefaultContentListName = "Default";
 
@@ -145,7 +145,7 @@ namespace Launcher
 
         int getMaxNavMeshDbFileSizeMiB()
         {
-            return Settings::navigator().mMaxNavmeshdbFileSize / (1024 * 1024);
+            return static_cast<int>(Settings::navigator().mMaxNavmeshdbFileSize / (1024 * 1024));
         }
     }
 }
@@ -153,13 +153,16 @@ namespace Launcher
 Launcher::DataFilesPage::DataFilesPage(const Files::ConfigurationManager& cfg, Config::GameSettings& gameSettings,
     Config::LauncherSettings& launcherSettings, MainDialog* parent)
     : QWidget(parent)
+    , mDirectoryPickerDialog(new QDialog(this))
     , mMainDialog(parent)
     , mCfgMgr(cfg)
     , mGameSettings(gameSettings)
     , mLauncherSettings(launcherSettings)
     , mNavMeshToolInvoker(new Process::ProcessInvoker(this))
+    , mReloadCellsThread(&DataFilesPage::reloadCells, this)
 {
     ui.setupUi(this);
+    mDirectoryPicker.setupUi(mDirectoryPickerDialog);
     setObjectName("DataFilesPage");
     mSelector = new ContentSelectorView::ContentSelector(ui.contentSelectorWidget, /*showOMWScripts=*/true);
     const QString encoding = mGameSettings.value("encoding", { "win1252" }).value;
@@ -200,8 +203,24 @@ Launcher::DataFilesPage::DataFilesPage(const Files::ConfigurationManager& cfg, C
     // the addons and don't want to get signals of the system doing it during startup.
     connect(mSelector, &ContentSelectorView::ContentSelector::signalAddonDataChanged, this,
         &DataFilesPage::slotAddonDataChanged);
+
+    mReloadCellsTimer = new QTimer(this);
+    mReloadCellsTimer->setSingleShot(true);
+    mReloadCellsTimer->setInterval(200);
+    connect(mReloadCellsTimer, &QTimer::timeout, this, &DataFilesPage::onReloadCellsTimerTimeout);
+
     // Call manually to indicate all changes to addon data during startup.
-    slotAddonDataChanged();
+    onReloadCellsTimerTimeout();
+}
+
+Launcher::DataFilesPage::~DataFilesPage()
+{
+    {
+        const std::lock_guard lock(mReloadCellsMutex);
+        mAbortReloadCells = true;
+        mStartReloadCells.notify_one();
+    }
+    mReloadCellsThread.join();
 }
 
 void Launcher::DataFilesPage::buildView()
@@ -247,6 +266,7 @@ void Launcher::DataFilesPage::buildView()
 
     buildArchiveContextMenu();
     buildDataFilesContextMenu();
+    buildDirectoryPickerContextMenu();
 }
 
 void Launcher::DataFilesPage::slotCopySelectedItemsPaths()
@@ -279,8 +299,10 @@ void Launcher::DataFilesPage::buildArchiveContextMenu()
         &DataFilesPage::slotShowArchiveContextMenu);
 
     mArchiveContextMenu = new QMenu(ui.archiveListWidget);
-    mArchiveContextMenu->addAction(tr("&Check Selected"), this, SLOT(slotCheckMultiSelectedItems()));
-    mArchiveContextMenu->addAction(tr("&Uncheck Selected"), this, SLOT(slotUncheckMultiSelectedItems()));
+    mArchiveContextMenu->addAction(tr("&Check Selected"), this,
+        [this]() { setCheckStateForMultiSelectedItems(ui.archiveListWidget, Qt::Checked); });
+    mArchiveContextMenu->addAction(tr("&Uncheck Selected"), this,
+        [this]() { setCheckStateForMultiSelectedItems(ui.archiveListWidget, Qt::Unchecked); });
 }
 
 void Launcher::DataFilesPage::buildDataFilesContextMenu()
@@ -293,6 +315,18 @@ void Launcher::DataFilesPage::buildDataFilesContextMenu()
         tr("&Copy Path(s) to Clipboard"), this, &Launcher::DataFilesPage::slotCopySelectedItemsPaths);
     mDataFilesContextMenu->addAction(
         tr("&Open Path in File Explorer"), this, &Launcher::DataFilesPage::slotOpenSelectedItemsPaths);
+}
+
+void Launcher::DataFilesPage::buildDirectoryPickerContextMenu()
+{
+    connect(mDirectoryPicker.dirListWidget, &QListWidget::customContextMenuRequested, this,
+        &DataFilesPage::slotShowDirectoryPickerContextMenu);
+
+    mDirectoryPickerMenu = new QMenu(mDirectoryPicker.dirListWidget);
+    mDirectoryPickerMenu->addAction(tr("&Check Selected"), this,
+        [this]() { setCheckStateForMultiSelectedItems(mDirectoryPicker.dirListWidget, Qt::Checked); });
+    mDirectoryPickerMenu->addAction(tr("&Uncheck Selected"), this,
+        [this]() { setCheckStateForMultiSelectedItems(mDirectoryPicker.dirListWidget, Qt::Unchecked); });
 }
 
 bool Launcher::DataFilesPage::loadSettings()
@@ -351,9 +385,17 @@ void Launcher::DataFilesPage::populateFileViews(const QString& contentModelName)
     if (!resourcesVfs.isEmpty())
         directories.insert(0, { resourcesVfs });
 
+    QIcon containsDataIcon(":/images/openmw-plugin.png");
+
+    QProgressDialog progressBar("Adding data directories", {}, 0, static_cast<int>(directories.size()), this);
+    progressBar.setWindowModality(Qt::WindowModal);
+
     std::unordered_set<QString> visitedDirectories;
-    for (const Config::SettingValue& currentDir : directories)
+    for (qsizetype i = 0; i < directories.size(); ++i)
     {
+        progressBar.setValue(static_cast<int>(i));
+
+        const Config::SettingValue& currentDir = directories.at(i);
         if (!visitedDirectories.insert(currentDir.value).second)
             continue;
 
@@ -402,7 +444,7 @@ void Launcher::DataFilesPage::populateFileViews(const QString& contentModelName)
         // Add a "data file" icon if the directory contains a content file
         if (mSelector->containsDataFiles(currentDir.value))
         {
-            item->setIcon(QIcon(":/images/openmw-plugin.png"));
+            item->setIcon(containsDataIcon);
 
             tooltip << tr("Contains content file(s)");
         }
@@ -416,6 +458,7 @@ void Launcher::DataFilesPage::populateFileViews(const QString& contentModelName)
         }
         item->setToolTip(tooltip.join('\n'));
     }
+    progressBar.setValue(progressBar.maximum());
     mSelector->sortFiles();
 
     QList<Config::SettingValue> selectedArchives = mGameSettings.getArchiveList();
@@ -765,7 +808,7 @@ void Launcher::DataFilesPage::addSubdirectories(bool append)
         return;
 
     QString rootPath = QFileDialog::getExistingDirectory(
-        this, tr("Select Directory"), QDir::homePath(), QFileDialog::ShowDirsOnly | QFileDialog::Option::ReadOnly);
+        this, tr("Select Directory"), {}, QFileDialog::ShowDirsOnly | QFileDialog::Option::ReadOnly);
 
     if (rootPath.isEmpty())
         return;
@@ -793,28 +836,22 @@ void Launcher::DataFilesPage::addSubdirectories(bool append)
         return;
     }
 
-    QDialog dialog;
-    Ui::SelectSubdirs select;
-
-    select.setupUi(&dialog);
+    mDirectoryPicker.dirListWidget->clear();
 
     for (const auto& dir : subdirs)
     {
         if (!ui.directoryListWidget->findItems(dir, Qt::MatchFixedString).isEmpty())
             continue;
-        const auto lastRow = select.dirListWidget->count();
-        select.dirListWidget->addItem(dir);
-        select.dirListWidget->item(lastRow)->setCheckState(Qt::Unchecked);
+        QListWidgetItem* newDir = new QListWidgetItem(dir, mDirectoryPicker.dirListWidget);
+        newDir->setCheckState(Qt::Unchecked);
     }
 
-    dialog.show();
-
-    if (dialog.exec() == QDialog::Rejected)
+    if (mDirectoryPickerDialog->exec() == QDialog::Rejected)
         return;
 
-    for (int i = 0; i < select.dirListWidget->count(); ++i)
+    for (int i = 0; i < mDirectoryPicker.dirListWidget->count(); ++i)
     {
-        const auto* dir = select.dirListWidget->item(i);
+        const auto* dir = mDirectoryPicker.dirListWidget->item(i);
         if (dir->checkState() == Qt::Checked)
         {
             ui.directoryListWidget->insertItem(selectedRow, dir->text());
@@ -865,36 +902,33 @@ void Launcher::DataFilesPage::removeDirectory()
     refreshDataFilesView();
 }
 
+void Launcher::DataFilesPage::showContextMenu(QMenu* menu, QListWidget* list, const QPoint& pos)
+{
+    QPoint globalPos = list->viewport()->mapToGlobal(pos);
+    menu->exec(globalPos);
+}
+
 void Launcher::DataFilesPage::slotShowArchiveContextMenu(const QPoint& pos)
 {
-    QPoint globalPos = ui.archiveListWidget->viewport()->mapToGlobal(pos);
-    mArchiveContextMenu->exec(globalPos);
+    showContextMenu(mArchiveContextMenu, ui.archiveListWidget, pos);
 }
 
 void Launcher::DataFilesPage::slotShowDataFilesContextMenu(const QPoint& pos)
 {
-    QPoint globalPos = ui.directoryListWidget->viewport()->mapToGlobal(pos);
-    mDataFilesContextMenu->exec(globalPos);
+    showContextMenu(mDataFilesContextMenu, ui.directoryListWidget, pos);
 }
 
-void Launcher::DataFilesPage::setCheckStateForMultiSelectedItems(bool checked)
+void Launcher::DataFilesPage::slotShowDirectoryPickerContextMenu(const QPoint& pos)
 {
-    Qt::CheckState checkState = checked ? Qt::Checked : Qt::Unchecked;
+    showContextMenu(mDirectoryPickerMenu, mDirectoryPicker.dirListWidget, pos);
+}
 
-    for (QListWidgetItem* selectedItem : ui.archiveListWidget->selectedItems())
+void Launcher::DataFilesPage::setCheckStateForMultiSelectedItems(QListWidget* list, Qt::CheckState checkState)
+{
+    for (QListWidgetItem* selectedItem : list->selectedItems())
     {
         selectedItem->setCheckState(checkState);
     }
-}
-
-void Launcher::DataFilesPage::slotUncheckMultiSelectedItems()
-{
-    setCheckStateForMultiSelectedItems(false);
-}
-
-void Launcher::DataFilesPage::slotCheckMultiSelectedItems()
-{
-    setCheckStateForMultiSelectedItems(true);
 }
 
 void Launcher::DataFilesPage::moveSources(QListWidget* sourceList, int step)
@@ -981,32 +1015,66 @@ bool Launcher::DataFilesPage::showDeleteMessageBox(const QString& text)
 
 void Launcher::DataFilesPage::slotAddonDataChanged()
 {
-    QStringList selectedFiles = selectedFilePaths();
-    if (previousSelectedFiles != selectedFiles)
+    mReloadCellsTimer->start();
+}
+
+void Launcher::DataFilesPage::onReloadCellsTimerTimeout()
+{
+    const ContentSelectorModel::ContentFileList items = mSelector->selectedFiles();
+    QStringList selectedFiles;
+    for (const ContentSelectorModel::EsmFile* item : items)
+        selectedFiles.append(item->filePath());
+
+    if (mSelectedFiles != selectedFiles)
     {
-        previousSelectedFiles = selectedFiles;
-        // Loading cells for core Morrowind + Expansions takes about 0.2 seconds, which is enough to cause a
-        // barely perceptible UI lag. Splitting into its own thread to alleviate that.
-        std::thread loadCellsThread(&DataFilesPage::reloadCells, this, selectedFiles);
-        loadCellsThread.detach();
+        const std::lock_guard lock(mReloadCellsMutex);
+        mSelectedFiles = std::move(selectedFiles);
+        mReloadCells = true;
+        mStartReloadCells.notify_one();
     }
 }
 
-// Mutex lock to run reloadCells synchronously.
-static std::mutex reloadCellsMutex;
-
-void Launcher::DataFilesPage::reloadCells(QStringList selectedFiles)
+void Launcher::DataFilesPage::reloadCells()
 {
-    // Use a mutex lock so that we can prevent two threads from executing the rest of this code at the same time
-    // Based on https://stackoverflow.com/a/5429695/531762
-    std::unique_lock<std::mutex> lock(reloadCellsMutex);
+    QStringList selectedFiles;
+    std::unique_lock lock(mReloadCellsMutex);
 
-    // The following code will run only if there is not another thread currently running it
-    CellNameLoader cellNameLoader;
-    QSet<QString> set = cellNameLoader.getCellNames(selectedFiles);
-    QStringList cellNamesList(set.begin(), set.end());
-    std::sort(cellNamesList.begin(), cellNamesList.end());
-    emit signalLoadedCellsChanged(cellNamesList);
+    while (true)
+    {
+        if (mAbortReloadCells)
+            return;
+
+        mStartReloadCells.wait(lock);
+
+        if (mAbortReloadCells)
+            return;
+
+        if (!std::exchange(mReloadCells, false))
+            continue;
+
+        const QStringList newSelectedFiles = mSelectedFiles;
+
+        lock.unlock();
+
+        QStringList filteredFiles;
+        for (const QString& v : newSelectedFiles)
+            if (QFile::exists(v))
+                filteredFiles.append(v);
+
+        if (selectedFiles != filteredFiles)
+        {
+            selectedFiles = std::move(filteredFiles);
+
+            CellNameLoader cellNameLoader;
+            QSet<QString> set = cellNameLoader.getCellNames(selectedFiles);
+            QStringList cellNamesList(set.begin(), set.end());
+            std::sort(cellNamesList.begin(), cellNamesList.end());
+
+            emit signalLoadedCellsChanged(std::move(cellNamesList));
+        }
+
+        lock.lock();
+    }
 }
 
 void Launcher::DataFilesPage::startNavMeshTool()
